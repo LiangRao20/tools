@@ -1,4 +1,4 @@
-function [coeff,conf] = dcregress(x, y, test_flag)
+function [coeff,conf,dof] = dcregress(x, y, test_flag)
 
     if ~exist('test_flag', 'var'), test_flag = 0; end
 
@@ -31,8 +31,9 @@ function [coeff,conf] = dcregress(x, y, test_flag)
 
     dof(1) = calcdof(x);
     dof(2) = calcdof(y);
+    dof = min(dof-2);
 
-    [lo,up] = conft(0.05, min(dof-2));
+    [lo,up] = conft(0.05, dof);
     conf(1,1) = up * err(1);
     conf(2,1) = up * err(2);
 
