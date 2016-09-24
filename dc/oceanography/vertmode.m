@@ -1,17 +1,20 @@
-function [Vmode, Hmode, c] = vertmode(N2, Z, n, make_plot)
+function [Vmode, Hmode, c] = vertmode(N2, Z, n, make_plot, check_norm)
 
-% function [Vmode, Hmode, c] = vertmode(N2, Z, n, make_plot)
+% function [Vmode, Hmode, c] = vertmode(N2, Z, n, make_plot, check_norm)
 % Takes input N2 -> Buoyancy frequency squared (@ mid pts of Z)
 %              Z -> Vertical co-ordinate
 %              n -> No. of modes to isolate
 %                   Max. number of nodes is length(Z)-1
+%              make_plot -> plot mode shapes
+%              check_norm -> check normalization
 % Returns
 %             Vmode -> Vertical structure for vertical velocity
 %             Hmode -> Vertical structure for horizontal velocities, pressure
 %              c(i) -> Gravity Wave speed of i-th mode
 %
 
-    if ~exist('make_plot','var'), make_plot = 1; end
+    if ~exist('make_plot', 'var'), make_plot = 1; end
+    if ~exist('check_norm', 'var'), check_norm = 0; end
 
     lz = length(Z);
     if size(Z,1) == 1, Z = Z'; end
@@ -27,8 +30,9 @@ function [Vmode, Hmode, c] = vertmode(N2, Z, n, make_plot)
         Z = -1 * Z;
     end
 
-    if any(Z < 0), error(['Some elements in Z are 0. This is not ' ...
-                          'allowed!']); end
+    if any(Z < 0)
+        error(['Some elements in Z are above the surface!']);
+    end
 
     flipflag = 0;
     if all(diff(Z) < 0),
@@ -89,14 +93,16 @@ function [Vmode, Hmode, c] = vertmode(N2, Z, n, make_plot)
     norm = sqrt(sum(avg1(Hmode).^2.*repmat(diff(Zmid),1,n)));
     Hnorm = Hmode./repmat(norm,lz-1,1);
 
-    % check normalization
-    hchk = sum(avg1(Hnorm).^2.*repmat(diff(Zmid),1,n));
-    vchk = sum(avg1(Vnorm.*repmat(N2,1,n)).^2.*repmat(diff(Zmid),1,n));
+    if check_norm
+        % check normalization
+        hchk = sum(avg1(Hnorm).^2.*repmat(diff(Zmid),1,n));
+        vchk = sum(avg1(Vnorm.*repmat(N2,1,n)).^2.*repmat(diff(Zmid),1,n));
 
-    fprintf('\n u mode normalization: \n');
-    disp(hchk);
-    fprintf('\n w mode normalization: \n');
-    disp(vchk);
+        fprintf('\n u mode normalization: \n');
+        disp(hchk);
+        fprintf('\n w mode normalization: \n');
+        disp(vchk);
+    end
 
     Hmode = Hnorm;
     Vmode = Vnorm;
