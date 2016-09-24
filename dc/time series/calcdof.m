@@ -8,13 +8,7 @@ function [dof, IntegralTimeScale] = calcdof(in)
 
     % calculate a bunch of timescales and take maximum
     % From Talley et al., Descriptive Physical Oceanography.
-    IntegralTimeScale = nan([1 length(c) - (imax + 3) + 1]);
-    for tt=imax+3:length(c)
-        ff = tt - (imax+3) + 1;
-        CorrArea = sum( (c(imax:tt-1) + c(imax+1:tt))/2 );
-        IntegralTimeScale(ff) = CorrArea/cmax;
-    end
+    IntegralTimeScale = max(cumtrapz(c(imax:length(c))))./cmax;
 
-    IntegralTimeScale = max(IntegralTimeScale);
     dof = floor(length(in)/IntegralTimeScale);
 end
