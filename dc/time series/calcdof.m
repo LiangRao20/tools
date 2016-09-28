@@ -2,13 +2,60 @@
 %        [dof, IntegralTimeScale] = calcdof(in)
 function [dof, IntegralTimeScale] = calcdof(in)
 
-    [c,lags] = xcorr(in - mean(in), 'coef');
-    [cmax,imax] = max(c);
-    % i0 = imax + find(c(imax:end) < 0, 1, 'first') - 1; % first zero crossing
+    nans = isnan(in);
+    edges = diff(nans);
+    gapstart = find(edges == 1) + 1;
+    gapend = find(edges == -1);
 
-    % calculate a bunch of timescales and take maximum
-    % From Talley et al., Descriptive Physical Oceanography.
-    IntegralTimeScale = max(cumtrapz(c(imax:length(c))))./cmax;
+    if isnan(in(1)), gapstart = [1 gapstart]; end
+    if isnan(in(end))
+        gapend(end+1) = length(in);
+    else
+        % last gap is not at the end of time series.
+        gapstart(end+1) = length(in);
+        gapend(end+1) = length(in);
+    end
 
-    dof = floor(length(in)/IntegralTimeScale);
+    if isempty(gapstart) & isempty(gapend) ...
+            & isequal(nans, zeros(size(nans)))
+        % input series has no gaps
+        gapstart = length(in) + 1;
+        gapend = gapstart;
+    end
+
+    assert(length(gapstart) == length(gapend), ...
+           ['FilterSeries: gapstart and gapend are not same ' ...
+            'size.']);
+
+    start = 1;
+    for ii=1:length(gapstart)
+        range = start:gapstart(ii)-1;
+        % set start for next iteration to be end of current gap.
+        start = gapend(ii)+1;
+
+        if isempty(range)
+            % first element is NaN
+            continue;
+        end
+
+        assert(all(isnan(in(range)) == 0), 'NaNs in selected range!');
+
+        [c,lags] = xcorr(in(range) - mean(in(range)), 'coef');
+        [cmax,imax] = max(c);
+
+        if isempty(find(c < 0))
+            % if no zero-crossing in auto-correlation, then the
+            % segment isn't long enough to be meaningful
+            dof(ii) = NaN;
+            continue;
+        end
+
+        % calculate a bunch of timescales and take maximum
+        % From Talley et al., Descriptive Physical Oceanography.
+        IntegralTimeScale = max(cumtrapz(c(imax:length(c))))./cmax;
+
+        dof(ii) = floor(length(in(range))/IntegralTimeScale);
+    end
+
+    dof = nansum(dof);
 end

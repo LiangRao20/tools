@@ -10,6 +10,9 @@ function [coeff,conf,dof] = dcregress(x, y, test_flag)
     if size(x,2) == 1, x = x'; end
     if size(y,2) == 1, y = y'; end
 
+    xnan = x; ynan = y;
+    x = cut_nan(x); y = cut_nan(y);
+
     E = [ones(size(x')) x'];
 
     %%%%%%%%%%% See Wunsch(1996) pg. 116
@@ -29,8 +32,9 @@ function [coeff,conf,dof] = dcregress(x, y, test_flag)
     P = ETEI * E' * var(res) * E * ETEI;
     err = sqrt(diag(P));  % standard error
 
-    dof(1) = calcdof(x);
-    dof(2) = calcdof(y);
+    % calculate degrees of freedom taking into account gaps
+    dof(1) = calcdof(xnan);
+    dof(2) = calcdof(ynan);
     dof = min(dof-2);
 
     [lo,up] = conft(0.05, dof);
