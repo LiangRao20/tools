@@ -1,6 +1,7 @@
-function [coeff,conf,dof] = dcregress(x, y, test_flag)
+function [coeff,conf,dof] = dcregress(x, y, test_flag, plot_flag)
 
     if ~exist('test_flag', 'var'), test_flag = 0; end
+    if ~exist('plot_flag', 'var'), plot_flag = 0; end
 
     if test_flag
         test_dcregress;
@@ -55,6 +56,18 @@ function [coeff,conf,dof] = dcregress(x, y, test_flag)
     %[c,lags] = xcorr(fluxvec - mean(fluxvec(:)), 'coef');
     %plot(lags, c); linex(0); liney(0);
 
+    if plot_flag
+        figure; hold on;
+        plot(x,y, '.', 'MarkerSize', 16, 'Color', [1 1 1]*0.4);
+        limx = xlim;
+        xvec = linspace(limx(1), limx(2), 1000);
+        yvec = slope * xvec + intercept;
+        yvechi = (slope + conf(2))*xvec + intercept + conf(1);
+        yveclo = (slope - conf(2))*xvec + intercept - conf(1);
+        plot(xvec, yvec, 'k');
+        plot(xvec, yvechi, 'k--');
+        plot(xvec, yveclo, 'k--');
+    end
 end
 
 function [] = test_dcregress()
