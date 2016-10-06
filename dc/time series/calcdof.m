@@ -40,6 +40,9 @@ function [dof, IntegralTimeScale] = calcdof(in)
 
         assert(all(isnan(in(range)) == 0), 'NaNs in selected range!');
 
+        % Using coef and biased are the same because I normalize by
+        % cmax later. Sarah Gille's notes uses biased, but says to
+        % normalize so that autocorrelation is 1 at 0 lag.
         [c,lags] = xcorr(in(range) - mean(in(range)), 'coef');
         [cmax,imax] = max(c);
 
@@ -54,7 +57,11 @@ function [dof, IntegralTimeScale] = calcdof(in)
         % From Talley et al., Descriptive Physical Oceanography.
         IntegralTimeScale = max(cumtrapz(c(imax:length(c))))./cmax;
 
-        dof(ii) = floor(length(in(range))/IntegralTimeScale);
+        % Techincally, for sin(2π/T t), IntegralTimeScale = T/2π
+        % The zero-crossing for that sinusoid is at T/4 points
+        % T/4 = IntegralTimeScale * π/2
+        % Sarah Gille's notes do not do this though. Kyun? Pata nahin.
+        dof(ii) = floor( length(in(range)) / (IntegralTimeScale) );
     end
 
     dof = nansum(dof);
