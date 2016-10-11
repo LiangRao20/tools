@@ -1,3 +1,6 @@
+% Does Ordinary least squares. Calculates confidence bounds after
+% estimating degrees of freedom.
+%    [coeff,conf,dof] = dcregress(x, y, test_flag, plot_flag)
 function [coeff,conf,dof] = dcregress(x, y, test_flag, plot_flag)
 
     if ~exist('test_flag', 'var'), test_flag = 0; end
