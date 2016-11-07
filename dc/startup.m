@@ -43,9 +43,9 @@ set(groot,'DefaultAxesTickDir','out')
 %set(groot,'DefaultAxesXMinorTick','on')
 %set(groot,'DefaultAxesYMinorTick','on')
 %set(groot,'DefaultAxesZMinorTick','on')
-set(groot,'DefaultAxesXColor',[.3 .3 .3])
-set(groot,'DefaultAxesYColor',[.3 .3 .3])
-set(groot,'DefaultAxesZColor',[.3 .3 .3])
+set(groot,'DefaultAxesXColor',[1 1 1]*0.1)
+set(groot,'DefaultAxesYColor',[1 1 1]*0.1)
+set(groot,'DefaultAxesZColor',[1 1 1]*0.1)
 set(groot,'DefaultAxesLineWidth',1)
 set(groot,'DefaultLineLineWidth',2);
 
