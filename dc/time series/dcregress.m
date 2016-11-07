@@ -1,8 +1,9 @@
 % Does Ordinary least squares. Calculates confidence bounds after
 % estimating degrees of freedom.
-%    [coeff,conf,dof] = dcregress(x, y, test_flag, plot_flag)
-function [coeff,conf,dof] = dcregress(x, y, test_flag, plot_flag)
+%    [coeff,conf,dof] = dcregress(x, y, dof, test_flag, plot_flag)
+function [coeff,conf,dof] = dcregress(x, y, dof, test_flag, plot_flag)
 
+    if ~exist('dof', 'var'), dof = NaN; end
     if ~exist('test_flag', 'var'), test_flag = 0; end
     if ~exist('plot_flag', 'var'), plot_flag = 0; end
 
@@ -36,10 +37,12 @@ function [coeff,conf,dof] = dcregress(x, y, test_flag, plot_flag)
     P = ETEI * E' * var(res) * E * ETEI;
     err = sqrt(diag(P));  % standard error
 
-    % calculate degrees of freedom taking into account gaps
-    dof(1) = calcdof(xnan);
-    dof(2) = calcdof(ynan);
-    dof = min(dof-2);
+    if isnan(dof)
+        % calculate degrees of freedom taking into account gaps
+        dof(1) = calcdof(xnan);
+        dof(2) = calcdof(ynan);
+        dof = min(dof-2);
+    end
 
     [lo,up] = conft(0.05, dof);
     conf(1,1) = up * err(1);
