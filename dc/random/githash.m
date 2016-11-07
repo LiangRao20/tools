@@ -11,7 +11,7 @@ function [hash] = githash(fname, gitdir)
     end
 
     [~, hashout] = system(['TERM=xterm git ' gitdir ...
-                        ' log -n 1 --no-color --pretty=format:''%H'' ' fname ' < /dev/null']);
+                        ' log -n 1 --no-color --pretty=format:''%H'' ''' fname ''' < /dev/null']);
 
     % remove bash escape characters
     hash = hashout(9:48)
