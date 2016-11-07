@@ -45,6 +45,8 @@ function [h_plot] = mod_movie(fname, varname, tindices, volume, axis, index, com
 if ~exist('hax', 'var')
     figure;
     hax = gca;
+else
+    axes(hax);
 end
 
 % fname = find_file(fname);
