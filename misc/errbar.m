@@ -160,9 +160,9 @@ else
 end
 
 % Turn off handle visibilty so error bars won't show up in legend: (Thanks for this suggestion, FEX user David.): 
-set(h(:),'handlevisibility','off');
+set(h(2:end),'handlevisibility','off');
 
-
+linkprop(h, 'Color')
 %% Clean up:
 
 if nargout==0
