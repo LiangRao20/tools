@@ -1,6 +1,7 @@
 function [Vmode, Hmode, c] = vertmode(N2, Z, n, make_plot, check_norm)
 
 % function [Vmode, Hmode, c] = vertmode(N2, Z, n, make_plot, check_norm)
+% Uses centered first differences discretization of Chelton et al. (1998)
 % Takes input N2 -> Buoyancy frequency squared (@ mid pts of Z)
 %              Z -> Vertical co-ordinate
 %              n -> No. of modes to isolate
@@ -47,8 +48,10 @@ function [Vmode, Hmode, c] = vertmode(N2, Z, n, make_plot, check_norm)
         n = lz - 1;
     end
 
-    % Following Chelton (1998)
-    % Q'AW = (lambda)W
+    % Following Chelton et al. (1998)
+    % Q'AW = (lambda)W (eqn. C.5)
+    % centered first difference discretization
+    % of the eigenvalue problem
 
     D(1) = Z(2)/2;
     D(2:lz-1) = (Z(3:lz)-Z(1:lz-2))/2;
