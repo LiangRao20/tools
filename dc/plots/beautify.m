@@ -6,7 +6,7 @@
 
 % Deepak Cherian 05/11/2010
 
-function [] = beautify(fontSizes)
+function [] = beautify(fontSizes, font_name)
 
 %drawnow;
 
@@ -14,7 +14,9 @@ function [] = beautify(fontSizes)
         fontSizes = [22 24 28];
     end
 
-    font_name = 'Fira Sans';
+    if ~exist('font_name', 'var')
+        font_name = 'Fira Sans';
+    end
     font_name_axis = font_name;
 
     % Get required handles for current figure
@@ -71,9 +73,9 @@ function [] = beautify(fontSizes)
         'FontWeight' , 'normal', ...
         'FontName'   , font_name);
 
-     % Line Width 2
-     set(findobj('Type','line'),'LineWidth',2)
-     try
+    % Line Width 2
+    set(findobj('Type','line'),'LineWidth',2)
+    try
          set(findobj('Tag', 'dcline'), 'LineWidth',1);
      catch ME
      end
