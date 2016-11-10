@@ -10,3 +10,6 @@
 [submodule "misc/fix_matlab_eps"]
 	path = misc/fix_matlab_eps
 	url = git@github.com:Sbte/fix_matlab_eps.git
+[submodule "misc/superbar"]
+	path = misc/superbar
+	url = git@github.com:dcherian/superbar.git
