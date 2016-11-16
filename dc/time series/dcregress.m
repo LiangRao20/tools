@@ -3,7 +3,7 @@
 %    [coeff,conf,dof] = dcregress(x, y, dof, test_flag, plot_flag)
 function [coeff,conf,dof] = dcregress(x, y, dof, test_flag, plot_flag)
 
-    if ~exist('dof', 'var'), dof = NaN; end
+    if ~exist('dof', 'var') | isempty(dof), dof = NaN; end
     if ~exist('test_flag', 'var'), test_flag = 0; end
     if ~exist('plot_flag', 'var'), plot_flag = 0; end
 
