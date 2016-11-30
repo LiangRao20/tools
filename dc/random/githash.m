@@ -1,7 +1,7 @@
 function [hash] = githash(fname, gitdir)
 
     if ~exist('fname', 'var')
-        fname = [];
+        fname = '.';
     end
 
     if ~exist('gitdir', 'var')
