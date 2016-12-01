@@ -1,7 +1,7 @@
 % Calculates and returns frequencies, coherence (complex), phase (in degrees)
 %       [fc,C, theta] = dccoher(x,y,dt,n,plot)
 %       n -> number of frequency bands to average.
-% Note: frequency units are 1/dt
+% Note: frequency units are 1/dt, plots squared coherence and phase
 
 function [fc,C,theta] = dccoher(x,y,dt,n,plot)
 
@@ -26,9 +26,11 @@ function [fc,C,theta] = dccoher(x,y,dt,n,plot)
     
     f2 = conv(f1,ones(n,1)/n,'same');
     
+    % coherence
     C = phi_xy(n:n:end-1) ./ sqrt(phi_xx(n:n:end-1) .* phi_yy(n:n:end-1));
     theta = angle(C)*180/pi;
     fc = f2(n:n:end-1);
+    % squared coherence
     C2 = abs(C).^2;
     
     sig = coher_sig(0.05,n);

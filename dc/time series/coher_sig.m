@@ -1,3 +1,4 @@
+% significance level for /coherence squared/ not /coherence/
 % nf -> effective number of frequency components in spectral window
 %    = (degrees of freedom)/2
 % alpha = 0.05 for 95% significance
@@ -7,4 +8,3 @@
 function [sig] = coher_sig(alpha, nf)
 
     sig = 1-alpha^(1/(nf -1));
-    
