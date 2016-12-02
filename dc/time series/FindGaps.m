@@ -11,8 +11,8 @@ function [gapstart, gapend] = FindGaps(in)
         gapend(end+1) = length(in);
     else
         % last gap is not at the end of time series.
-        gapstart(end+1) = length(in);
-        gapend(end+1) = length(in);
+        gapstart(end+1) = length(in)+1;
+        gapend(end+1) = length(in)+1;
     end
 
     if isempty(gapstart) & isempty(gapend) ...
