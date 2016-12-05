@@ -36,6 +36,8 @@ set(groot,'DefaultAxesLineStyleOrder',{'-','--','-.'});
 set(groot,'DefaultAxesColorOrder', linspecer(8, 'qualitative'));
 %set(groot,'DefaultAxesColorOrder', distinguishable_colors(15));
 
+set(groot, 'DefaultHistogramEdgeColor', 'none')
+
 % axes
 set(groot,'DefaultAxesFontName',fontName)
 set(groot, 'DefaultAxesTitleFontWeight','normal');
@@ -69,7 +71,7 @@ else
    if strfind(mach,'poison')
      cd('/home/poison/deepak/ROMS/runs/eddyshelf/scripts/');
    else
-     cd('/media/data/Work/eddyshelf/');
+       cd('~/eq_waves/scripts/');
    end
 end
 
