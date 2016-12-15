@@ -65,10 +65,10 @@ set(groot,'DefaultLineLineWidth',2);
 
 %% change to current working dir
 if ~strcmpi(computer,'GLNXA64')
-   cd('E:\Work\eddyshelf\');
+    cd('~/eq_waves/scripts/');
 else
-   mach = evalc('system hostname');
-   if strfind(mach,'poison')
+    mach = evalc('system hostname');
+    if strfind(mach,'poison')
      cd('/home/poison/deepak/ROMS/runs/eddyshelf/scripts/');
    else
        cd('~/eq_waves/scripts/');
