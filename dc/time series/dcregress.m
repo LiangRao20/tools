@@ -5,6 +5,8 @@
 % conf = 95% confidence intervals on coeff
 % dof =  degrees of freedom used for confidence interval
 % err = standard error on coeff.
+% dof_flag = 1 => if dof not provided estimate using calcdof
+%          = 0 => all input points are independent
 function [coeff,conf,dof,err] = dcregress(x, y, dof, test_flag, plot_flag, ...
                                           dof_flag)
 
@@ -83,12 +85,50 @@ function [coeff,conf,dof,err] = dcregress(x, y, dof, test_flag, plot_flag, ...
     %plot(lags, c); linex(0); liney(0);
 
     if plot_flag
-        figure; hold on;
+        figure;
+        subplot(2,3,[1 2]);
+        hold on;
         plot_fit(x, y, coeff(2), conf(2), coeff(1), conf(1), 'k', 1);
         title(['Slope = ' num2str(coeff(2)) ' | ' ...
               'Intercept = ' num2str(coeff(1))])
         rr = mf_wtls(x,y,0,0.4*std(y));
         plot_fit(x, y, rr(1), rr(2), rr(3), rr(4), 'r', 0);
+        xlabel('x'); ylabel('y');
+        beautify;
+
+        hax(1) = subplot(234);
+        histogram(res, 40, 'Normalization', 'PDF');
+        hold on;
+        xlim([-1 1]*max(abs(xlim)));
+        %FitAndPlotDist(res, 'normal', hax(1));
+        xplt = linspace(min(xlim), max(xlim), 100);
+        hnorm = plot(xplt, normpdf(xplt, 0, std(res)), 'b-');
+        legend(hnorm, 'Normal \mu=0, \sigma=std(res)')
+        ylabel('residuals PDF')
+        beautify;
+
+        subplot(235);
+        [c, lags] = xcorr(res, 'coef');
+        plot(lags, c);
+        hold on;
+        xlim([-100 100])
+        liney(0); linex(0);
+        ylabel({'Autocorrelation'; 'of residuals'})
+        beautify;
+
+        subplot(233)
+        plot(x, res, '*');
+        xlabel('x'); ylabel('residuals'); liney(0);
+        beautify;
+
+        subplot(236)
+        cla
+        n = 1;
+        plot(res(1:end-n), res(n+1:end), '*');
+        xlabel('residuals(t)');
+        ylabel(['residuals(t+' num2str(n) ')']);
+        liney(0); linex(0);
+        beautify;
     end
 end
 
