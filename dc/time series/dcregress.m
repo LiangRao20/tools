@@ -7,8 +7,9 @@
 % err = standard error on coeff.
 % dof_flag = 1 => if dof not provided estimate using calcdof
 %          = 0 => all input points are independent
+% err_flag = 1 => calculate errors else skip it.
 function [coeff,conf,dof,err] = dcregress(x, y, dof, test_flag, plot_flag, ...
-                                          dof_flag)
+                                          dof_flag, err_flag)
 
     if ~exist('dof', 'var') | isempty(dof), dof = NaN; end
     if ~exist('test_flag', 'var'), test_flag = 0; end
@@ -34,6 +35,8 @@ function [coeff,conf,dof,err] = dcregress(x, y, dof, test_flag, plot_flag, ...
     coeff = E\y';
     intercept = coeff(1);
     slope = coeff(2);
+
+    if ~err_flag, return; end
     true = y; est = intercept + slope .* x;
     res = true-est;
     % (E' * E) ^-1
