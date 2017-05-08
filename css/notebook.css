@@ -31,7 +31,7 @@ body {
     color: #657b83;
     font-family: 'Fira Sans', sans-serif;
     font-size: 20px;
-    font-weight: 400;
+    font-weight: 300;
     line-height: 1.5em;
     padding: 1em;
     margin: 40px auto;
@@ -107,16 +107,16 @@ h3::before {
 */
 }
 
-h1, h2, h3 {
+h1, h2, h3, h4, h5, h6 {
     /* padding: 15px 0 3px; */
     clear: both;
     font-weight: 400;
     vertical-align: middle;
+    color: #073642;
 }
 h1 { font-size: 2em; padding-top: 2.5em;}
 h2 { font-size: 1.7em; overflow: hidden;}
-h3, h4, h5, h6 { font-size: 1.2em; padding: 8px;}
-h4 { font-weight: inherit; color: #073642;}
+h3, h4, h5, h6 {font-size: 1.4em; padding: 8px;}
 
 h1, h1 a, h1 a:visited,
 h2, h2 a, h2 a:visited,
@@ -133,8 +133,6 @@ h1, h1 a, h1 a:visited {
 }
 h1 a:hover {
     color: #06e;
-/*       color: white;
-       background-color: black; */
 }
 h2 a:hover, h3 a:hover {
     color: black;
