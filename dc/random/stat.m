@@ -44,7 +44,8 @@ function [] = stat(var1)
     % Print out size first
     s = size(var1);
     n = numel(var1);
-    fprintf('\n\t %15s: %s \n\t %15s: %s ','Name',name,'Data Type', class(var1));
+    fprintf('\n\t %15s: %s \n\t %15s: %s ', ...
+            'Name',name,'Data Type', class(var1));
     
     % real v/s complex
     if isreal(var1)
@@ -109,12 +110,14 @@ function [] = stat(var1)
 %                 'Median', med);
 %     else
         fprintf(' \n\t %15s: % 1.3e \n\t %15s: % 1.3e \n\t %15s: % 1.3e \n\t %15s: % 1.3e ', ...% ...
-                'Max',full(nanmax(var1(:))), 'Min',full(nanmin(var1(:))), 'Mean',mean1, ...
+                'Max',full(nanmax(var1(:))), ...
+                'Min',full(nanmin(var1(:))), ...
+                'Mean',mean1, ...
                 'Median',med);
 %     end
     
     mcount = 0;
-    ind = nan(s(2));
+    ind = nan([s(2) 1]);
        
     if ~sparse_flag
         miss = sum(isnan(var1(:)));
