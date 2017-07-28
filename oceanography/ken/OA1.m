@@ -18,6 +18,9 @@ function  [phii,Var] = oa1(x,a,b,V,E,xm,phi,era)
 % covariance function = 
 %	V*exp(-(delx/a)^2)*cos(delx/b)
 
+xm(isnan(phi)) = [];
+phi = cut_nan(phi);
+
 [nm,mm] = size(phi);
 
 if nm > mm
@@ -47,5 +50,6 @@ Var = Cxx -C*Ai*C' + em;        %error variance
 
 IVar = diag(Var);
 i = find((IVar/V) > (era/100));
+
 [n,m] = size(i);
 phii(i) = NaN*ones(n,m);
