@@ -26,7 +26,9 @@ function [coeff,conf,dof,err] = dcregress(x, y, dof, test_flag, plot_flag, ...
     if size(y,2) == 1, y = y'; end
 
     xnan = x; ynan = y;
-    x = cut_nan(x); y = cut_nan(y);
+    nanmask = isnan(x) | isnan(y);
+    x = xnan(~nanmask);
+    y = ynan(~nanmask);
 
     E = [ones(size(x')) x'];
 
@@ -36,7 +38,7 @@ function [coeff,conf,dof,err] = dcregress(x, y, dof, test_flag, plot_flag, ...
     intercept = coeff(1);
     slope = coeff(2);
 
-    if ~err_flag, return; end
+    if ~err_flag & ~plot_flag, return; end
     true = y; est = intercept + slope .* x;
     res = true-est;
     % (E' * E) ^-1
@@ -49,11 +51,10 @@ function [coeff,conf,dof,err] = dcregress(x, y, dof, test_flag, plot_flag, ...
     P = ETEI * E' * var(res) * E * ETEI;
     err = sqrt(diag(P));  % standard error
 
-    % standard error of slope
-    n = length(x);
-    r = corrcoef(x,y); r = r(1,2);
-    syx = ((n-1)/(n-2) * var(y) * (1-r^2))^(1/2);
-    seb1 = syx/sqrt(var(x)*(n-1)); % should equal err(2)
+    % Rnn = res'*res;
+    % durbin test
+    % rhohat = sum(res(2:end).*res(1:end-1)) ...
+    %    ./ sum(res.^2)
 
     %assert((seb1-err(2))./err(2) < 1e-2);
 
@@ -68,6 +69,11 @@ function [coeff,conf,dof,err] = dcregress(x, y, dof, test_flag, plot_flag, ...
             dof = length(x)-2;
         end
     end
+    % standard error of slope assuming uncorrelated Gaussian white noise.
+    % n = dof; % length(x);
+    % r = corrcoef(x,y); r = r(1,2);
+    % syx = ((n-1)/(n-2) * var(y) * (1-r^2))^(1/2);
+    % seb1 = syx/sqrt(var(x)*(n-1)); % should equal err(2)
 
     [lo,up] = conft(0.05, dof);
     conf(1,1) = up * err(1);
@@ -94,8 +100,8 @@ function [coeff,conf,dof,err] = dcregress(x, y, dof, test_flag, plot_flag, ...
         plot_fit(x, y, coeff(2), conf(2), coeff(1), conf(1), 'k', 1);
         title(['Slope = ' num2str(coeff(2)) ' | ' ...
               'Intercept = ' num2str(coeff(1))])
-        rr = mf_wtls(x,y,0,0.4*std(y));
-        plot_fit(x, y, rr(1), rr(2), rr(3), rr(4), 'r', 0);
+        %rr = mf_wtls(x,y,0,0.4*std(y));
+        %plot_fit(x, y, rr(1), rr(2), rr(3), rr(4), 'r', 0);
         xlabel('x'); ylabel('y');
         beautify;
 
@@ -162,7 +168,7 @@ function [] = test_dcregress()
     b = 0.1
     a = 0.5
     x = linspace(0,1,8000);
-    y = a*x + b + a/4 * rand(size(x));
+    y = a*x + b + a/4 * randn(size(x));
 
     [coef,conf] = dcregress(x,y, [], 0, 1);
     [coef-conf coef+conf]

@@ -74,15 +74,21 @@ function [] = beautify(fontSizes, font_name)
         'FontName'   , font_name);
 
     % Line Width 2
-    set(findobj('Type','line'),'LineWidth',2)
+    set(findobj('Type','line'),'LineWidth',1)
     try
          set(findobj('Tag', 'dcline'), 'LineWidth',1);
      catch ME
-     end
+    end
 
-     % find contours / images and then set box on + renderer = zbuffer
-     if ~isempty(findall(gca,'type','contour','visible','on')) || ...
-             ~isempty(findall(gca,'type','image','visible','on'))
+    try
+        set(findobj('Type', 'text'), 'FontName', font_name)
+        set(findobj('Type', 'text'), 'FontSize', fontSizes(1))
+    catch ME
+    end
+
+    % find contours / images and then set box on + renderer = zbuffer
+    if ~isempty(findall(gca,'type','contour','visible','on')) || ...
+            ~isempty(findall(gca,'type','image','visible','on'))
          set(gcf, 'renderer', 'opengl'); % for speed?
          set(hAxis,'box','on');
      end
