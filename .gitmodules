@@ -13,3 +13,6 @@
 [submodule "misc/superbar"]
 	path = misc/superbar
 	url = git@github.com:dcherian/superbar.git
+[submodule "oceanography/GarrettMunkMatlab"]
+	path = oceanography/GarrettMunkMatlab
+	url = git@github.com:jklymak/GarrettMunkMatlab.git

@@ -53,7 +53,7 @@ set(groot,'DefaultAxesXColor',[1 1 1]*0.1)
 set(groot,'DefaultAxesYColor',[1 1 1]*0.1)
 set(groot,'DefaultAxesZColor',[1 1 1]*0.1)
 set(groot,'DefaultAxesLineWidth',1)
-set(groot,'DefaultLineLineWidth',2);
+set(groot,'DefaultLineLineWidth',1);
 
 % multiple monitor support
 %mm = get(groot,'MonitorPositions');
@@ -70,8 +70,6 @@ else
     mach = evalc('system hostname');
     if strfind(mach,'poison')
      cd('/home/poison/deepak/ROMS/runs/eddyshelf/scripts/');
-   else
-       cd('~/eq_waves/scripts/');
    end
 end
 
