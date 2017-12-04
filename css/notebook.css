@@ -24,22 +24,29 @@
 /* $hmargin:   70px; */
 /* $vmargin:   20px; */
 
+/* * {
+    margin: 0;
+    padding: 0;
+    box-sizing: border-box;
+} */
+
 html {
 }
 
 body {
-    color: #657b83;
+    color: #094b5c; /* 657b83; */
     font-family: 'Fira Sans', sans-serif;
-    font-size: 20px;
+    font-size: 18pt;
     font-weight: 300;
     line-height: 1.5em;
     padding: 1em;
     margin: 40px auto;
-    max-width: 42em;
-    background: #fdf6e3;
-    /* background: #eee; */
-    text-rendering: optimizeLegibility;
+    max-width: 50em;
+    /* background: #fdf6e3; */
+    background: #fffeee;
+    overflow-x: hidden;
 }
+
 
 strong {
     font-weight: 500;
@@ -139,23 +146,20 @@ h2 a:hover, h3 a:hover {
     border-bottom: 1px solid black;
 }
 
-h2:before, h2:after {
+h2:after {
     content: '';
     display: inline-block;
     vertical-align: middle;
     width: 30px;
     height: 3px;
-    border-top:1px solid #000;
+    /* border-top:1px solid #000; */
     border-bottom:1px solid #000;
-}
-h2:after {
     width: 100%;
-    margin-left: 0.4em;
-    margin-right: -100%;
 }
 
 h3 {
-    background: #eee8d5;
+    color: #cb4b16;
+    text-decoration: underline;
 }
 
 /* --- Images -------------------------------------------------------------- */
@@ -179,11 +183,23 @@ figcaption {
 
 img {
     padding: 5px 20px;
-    max-width: 90%;
-    max-height:auto;
-    /* border: 1px solid; */
+    max-width: 92%;
 }
 
+img.full-width {
+    padding: 2em 0px;
+    max-width: 95vw;
+    width: 95vw;
+    overflow: hidden;
+    position: relative;
+    left: calc((-95vw + 50em) / 2 - 40px);
+}
+
+blockquote {
+    margin: 0 5em;
+    text-align: left;
+    text-justify: none;
+}
 /* --- Title/Subtitle ------------------------------------------------------ */
 
 .title {
