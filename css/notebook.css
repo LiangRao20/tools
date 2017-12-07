@@ -186,6 +186,15 @@ img {
     max-width: 92%;
 }
 
+img.zoom {
+    padding: 2em 0px;
+    max-width: 80vw;
+    width: 80vw;
+    overflow: hidden;
+    position: relative;
+    left: calc((-80vw + 50em) / 2 - 40px);
+}
+
 img.full-width {
     padding: 2em 0px;
     max-width: 95vw;
