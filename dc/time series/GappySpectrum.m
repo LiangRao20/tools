@@ -1,12 +1,16 @@
 % Calculate spectrum for gappy time series.
 % Provide subset length to average over
 %      [S, freq] = GappySpectrum(in, SubsetLength)
-function [S, freq] = GappySpectrum(in, SubsetLength)
+function [S, freq] = GappySpectrum(in, SubsetLength, nAvgBands)
     if size(in, 1) == 1, in = in'; end
 
     if ~exist('SubsetLength', 'var')
         warning('SubsetLength not provided. Using longest valid segment.');
         SubsetLength = [];
+    end
+
+    if ~exist('nAvgBands', 'var')
+        nAvgBands = 5;
     end
 
     data = ~isnan(in);
@@ -41,7 +45,10 @@ function [S, freq] = GappySpectrum(in, SubsetLength)
 
     if isempty(SubsetLength)
         [S, freq] = spectrum_band_avg(in(cc.PixelIdxList{maxdataidx}), ...
-                                      1, 5, 'hann', 0);
+                                      1, nAvgBands, 'hann', 0);
+        disp(['Using longest segment: ' ...
+              num2str(length(cc.PixelIdxList{maxdataidx})) ...
+              ' elements']);
     end
 
     if ~exist('freq', 'var')

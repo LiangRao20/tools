@@ -63,8 +63,8 @@ if plotflag==1
 
     figure
     h1=loglog(freq,YY_avg)
-    hold on%JTF
-           %loglog(freq,fitspec,'r')
+    hold on %JTF
+            %loglog(freq,fitspec,'r')
     spot=freq(4)*2;wid=spot*0.05;cstr=get(h1,'color');
     lowzz=var(yy)*low./100;
     upzz=var(yy)*up./100;
@@ -73,7 +73,8 @@ if plotflag==1
         h3=loglog([spot+10^-12 spot-10^-12], [lowzz,upzz],'color',cstr);
         loglog([spot+wid spot-wid], [upzz,upzz],'color',cstr);
         loglog([spot+wid spot-wid], [lowzz,lowzz],'color',cstr);
-        hh=text(1.1*spot,var(yy)./100,'95%');set(hh,'horizontalalignment','left')
+        hh=text(1.1*spot,var(yy)./100,'95%');
+        set(hh,'horizontalalignment','left')
     end%if plot errorbar
     axis tight;ax=axis;axis([ax(1:3) ax(4).*1.05]);ax=axis;
     xlabel('Frequency (cyc/day)')

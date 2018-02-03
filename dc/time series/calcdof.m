@@ -62,6 +62,7 @@ function [dof, IntegralTimeScale] = calcdof(in, filter, cutoff)
             % amplitude and frequency of sinusoid at each frequency
             % is number of degrees of freedom
             dof(ii) = numfreq*2;
+            IntegralTimeScale = NaN;
         else
             % Using coef and biased are the same because I normalize by
             % cmax later. Sarah Gille's notes uses biased, but says to
@@ -79,6 +80,7 @@ function [dof, IntegralTimeScale] = calcdof(in, filter, cutoff)
             % calculate a bunch of timescales and take maximum
             % From Talley et al., Descriptive Physical Oceanography.
             IntegralTimeScale = max(cumtrapz(c(imax:length(c))))./cmax;
+            % hold on; plot(cumtrapz(c(imax:length(c))))
 
             % Techincally, for sin(2π/T t), IntegralTimeScale = T/2π
             % The zero-crossing for that sinusoid is at T/4 points
