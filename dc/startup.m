@@ -3,13 +3,6 @@ fprintf('\n startup.m entered \n');
 % update toolboxcache
 rehash toolboxcache
 
-warning('setting DYLD_INSERT_LIBRARIES for libtiff');
-setenv('DYLD_INSERT_LIBRARIES',...
-       ['/usr/local/opt/freetype/lib/libfreetype.6.dylib:' ...
-        '/usr/local/opt/libtiff/lib/libtiff.5.dylib']);
-% unicode support
-feature('DefaultCharacterSet', 'UTF8');
-
 warning('off','MATLAB:HandleGraphics:ObsoletedProperty:JavaFrame');
 warning('off','MATLAB:lang:cannotClearExecutingFunction');
 
@@ -73,3 +66,5 @@ else
    end
 end
 
+
+addpath(genpath(fullfile(matlabroot,'toolbox','plotly')),'-end');
