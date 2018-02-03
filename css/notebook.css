@@ -175,6 +175,7 @@ figcaption {
     caption-side: top;
     margin-top: 2em;
     margin-bottom: 1em;
+    width: 80%;
 }
 
 .figure-number {
@@ -184,6 +185,8 @@ figcaption {
 img {
     padding: 5px 20px;
     max-width: 92%;
+    display: block;
+    margin: auto;
 }
 
 img.zoom {
