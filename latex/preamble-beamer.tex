@@ -3,7 +3,7 @@
 %% xelatex -ini -jobname=”preamble” “&xelatex” mylatexformat.ltx “””preamble.tex”””
 
 \RequirePackage[l2tabu, orthodox]{nag}
-\documentclass[presentation]{beamer}
+\documentclass[presentation, usenames, dvipsnames]{beamer}
 
 %\definecolor{MyColor}{RGB}{1,133,113}
 %\setbeamercolor{title}{fg=MyColor}
@@ -14,6 +14,11 @@
 \usepackage[Export]{adjustbox}
 \usepackage{appendixnumberbeamer}
 \usepackage{pdfpc-commands}
+\usepackage{changepage}
+
+\usepackage{tikz}
+\usepackage[dvipsnames]{xcolor}
+\usetikzlibrary{positioning}
 
 \input{preamble.tex}
 
