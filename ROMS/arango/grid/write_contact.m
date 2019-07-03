@@ -1,4 +1,4 @@
-function write_contact(ncname, S, varargin)
+function write_contact(ncname, S, G, varargin)
 
 %
 % WRITE_CONTACT:  Writes ROMS Nested Grids Contact Points to a NetCDF file
@@ -15,13 +15,15 @@ function write_contact(ncname, S, varargin)
 %    S           Nested grids Contact Points structure (struct array)
 %                  by "contact.m" or "read_contact.m" 
 %
+%    G           Information grids structure (1 x Ngrids struct array)
+%
 %    Lcreate     Switch to create a new NetCDF file (optional,
 %                                                    default true)
 %
 
-% svn $Id: write_contact.m 711 2014-01-23 20:36:13Z arango $
+% svn $Id: write_contact.m 938 2019-01-28 06:35:10Z arango $
 %=========================================================================%
-%  Copyright (c) 2002-2014 The ROMS/TOMS Group                            %
+%  Copyright (c) 2002-2019 The ROMS/TOMS Group                            %
 %    Licensed under a MIT/X style license                                 %
 %    See License_ROMS.txt                           Hernan G. Arango      %
 %=========================================================================%
@@ -37,7 +39,8 @@ end
 
 Ngrids    = S.Ngrids;           % number of nested grids
 Ncontact  = S.Ncontact;         % number of Contact Regions
-Nweights  = S.Nweights;         % Number of horizontal weights
+nLweights = S.nLweights;        % Number of linear    interpolation weights
+nQweights = S.nQweights;        % Number of quadratic interpolation weights
 Ndatum    = S.Ndatum;           % total number of Contact Points
 spherical = S.spherical;
 
@@ -45,11 +48,22 @@ FillValue = 1.0d+37;            % ROMS FillValue
 
 newline   = sprintf('\n');      % newline in global attributes
 
+AreaAvg=zeros([1 Ngrids]);
+for ng = 1:Ngrids
+  AreaAvg(ng) = mean(mean((1./G(ng).pm) .* (1./G(ng).pn)));
+end  
+
+spv  = -999;
+Imin = ones([1 Ngrids]) .* spv;
+Jmin = ones([1 Ngrids]) .* spv;
+Imax = ones([1 Ngrids]) .* spv;
+Jmax = ones([1 Ngrids]) .* spv;
+
 %--------------------------------------------------------------------------
 % Create Contact Points NetCDF file.
 %--------------------------------------------------------------------------
 
-if (Lcreate),
+if (Lcreate)
 
 % Create NetCDF file.
   
@@ -58,7 +72,7 @@ if (Lcreate),
 % Define few global attributes.
 
   Gnames = [];
-  for n=1:Ngrids,
+  for n=1:Ngrids
     Gnames = [Gnames  blanks(1) newline S.grid(n).filename];
   end
   ncwriteatt(ncname, '/', 'grid_files', Gnames);
@@ -101,6 +115,66 @@ ncwrite(ncname, 'interpolate', int32(ones([1 Ncontact])));
 ncwrite(ncname, 'donor_grid', int32([S.contact.donor_grid]));
 ncwrite(ncname, 'receiver_grid', int32([S.contact.receiver_grid]));
 
+% Update global type attribute.
+
+if (any([S.contact.hybrid]))
+  hybrid_nesting = true;
+  type = 'ROMS Hybrid Nesting Contact Regions Data';
+  ncwriteatt(ncname, '/', 'type', type);
+  disp(['Updated global ''type'' attribute to: "', type,'".'])
+else
+  hybrid_nesting = false;
+end
+
+% Hybrid nesting or refinement grid extraction coordinates, if any.
+
+if (hybrid_nesting)
+  cr = 1;
+  dg = S.contact(cr).donor_grid;
+  rg = S.contact(cr).receiver_grid;
+  Imin(rg) = min(S.contact(cr).corners.Idg);
+  Imax(rg) = max(S.contact(cr).corners.Idg);
+  Jmin(rg) = min(S.contact(cr).corners.Jdg);
+  Jmax(rg) = max(S.contact(cr).corners.Jdg);
+else
+  for cr=1:Ncontact
+    dg = S.contact(cr).donor_grid;
+    rg = S.contact(cr).receiver_grid;
+    if ((S.grid(rg).refine_factor > 0) && AreaAvg(dg) > AreaAvg(rg))
+      Imin(rg) = min(S.contact(cr).corners.Idg);
+      Jmin(rg) = min(S.contact(cr).corners.Jdg);
+      Imax(rg) = max(S.contact(cr).corners.Idg);
+      Jmax(rg) = max(S.contact(cr).corners.Jdg);
+    end
+  end
+
+  for ng=1:Ngrids
+    if (Imin(ng) ~= S.grid(ng).parent_Imin ||                           ...
+        Imax(ng) ~= S.grid(ng).parent_Imax)
+      error(['WRITE_CONTACT: inconsistent refined grid extraction ',    ...
+             'indices, Imin and Imax = ', num2str(Imin(ng)), blanks(2), ...
+             num2str(Imax(ng)), blanks(2), 'versus', blanks(2),         ...
+	     num2str(S.grid(ng).parent_Imin), blanks(2),                ...
+             num2str(S.grid(ng).parent_Imax), ',  Grid = ',             ...
+             num2str(ng)]);
+    end
+    if (Jmin(ng) ~= S.grid(ng).parent_Jmin ||                           ...
+        Jmax(ng) ~= S.grid(ng).parent_Jmax)
+      error(['WRITE_CONTACT: inconsistent refined grid extraction ',    ...
+             'indices, Jmin and Jmax = ', num2str(Jmin(ng)), blanks(2), ...
+             num2str(Jmax(ng)), blanks(2), 'versus', blanks(2),         ...
+	     num2str(S.grid(ng).parent_Jmin), blanks(2),                ...
+             num2str(S.grid(ng).parent_Jmax), ',  Grid = ',             ...
+             num2str(ng)]);
+    end
+  end
+end
+
+ncwrite(ncname, 'I_left',   int32(Imin));
+ncwrite(ncname, 'I_right',  int32(Imax));
+ncwrite(ncname, 'J_bottom', int32(Jmin));
+ncwrite(ncname, 'J_top',    int32(Jmax));
+
 % Number of contact point is each contact region.
 
 NpointsR = zeros([1 Ncontact]);
@@ -116,14 +190,12 @@ NendU = zeros([1 Ncontact]);
 NstrV = zeros([1 Ncontact]);
 NendV = zeros([1 Ncontact]);
 
-ic = 0;
-
 for cr=1:Ncontact
   NpointsR(cr) = length(S.contact(cr).point.Irg_rho);
   NpointsU(cr) = length(S.contact(cr).point.Irg_u);
   NpointsV(cr) = length(S.contact(cr).point.Irg_v);
 
-  if (cr == 1),
+  if (cr == 1)
     NstrR(cr) = 1;
   else
     NstrR(cr) = NendV(cr-1) + 1;
@@ -148,7 +220,7 @@ ncwrite(ncname, 'NendV', int32(NendV));
 
 contact_region = zeros([1 Ndatum]);
 
-for cr=1:Ncontact,
+for cr=1:Ncontact
   contact_region(NstrR(cr):NendV(cr)) = cr;
 end
 
@@ -159,7 +231,7 @@ ncwrite(ncname, 'contact_region', int32(contact_region));
 Idg = NaN([1 Ndatum]);
 Jdg = NaN([1 Ndatum]);
 
-for cr=1:Ncontact,
+for cr=1:Ncontact
   Idg(NstrR(cr):NendR(cr)) = S.contact(cr).point.Idg_rho;
   Idg(NstrU(cr):NendU(cr)) = S.contact(cr).point.Idg_u;
   Idg(NstrV(cr):NendV(cr)) = S.contact(cr).point.Idg_v;
@@ -177,7 +249,7 @@ ncwrite(ncname, 'Jdg', int32(Jdg));
 Irg = NaN([1 Ndatum]);
 Jrg = NaN([1 Ndatum]);
 
-for cr=1:Ncontact,
+for cr=1:Ncontact
   Irg(NstrR(cr):NendR(cr)) = S.contact(cr).point.Irg_rho;
   Irg(NstrU(cr):NendU(cr)) = S.contact(cr).point.Irg_u;
   Irg(NstrV(cr):NendV(cr)) = S.contact(cr).point.Irg_v;
@@ -190,35 +262,138 @@ end
 ncwrite(ncname, 'Irg', int32(Irg));
 ncwrite(ncname, 'Jrg', int32(Jrg));
 
-% Horizontal interpolation weights.
+% Donor grid cell bottom-left (XI,ETA) coordinates.
 
-Hweight = NaN([Nweights Ndatum]);
+xi_dg  = NaN([1 Ndatum]);
+eta_dg = NaN([1 Ndatum]);
 
-for cr=1:Ncontact,
-  Hweight(1:Nweights, NstrR(cr):NendR(cr)) = S.weights(cr).H_rho;
-  Hweight(1:Nweights, NstrU(cr):NendU(cr)) = S.weights(cr).H_u;
-  Hweight(1:Nweights, NstrV(cr):NendV(cr)) = S.weights(cr).H_v;
+for cr=1:Ncontact
+  dg = S.contact(cr).donor_grid;
+  [Ir,Jr] = size(S.grid(dg).I_rho);
+  [Iu,Ju] = size(S.grid(dg).I_u);
+  [Iv,Jv] = size(S.grid(dg).I_v);
+  Rindex  = sub2ind([Ir, Jr],                                           ...
+                      S.contact(cr).point.Idg_rho+1,                    ...
+                      S.contact(cr).point.Jdg_rho+1);
+  Uindex  = sub2ind([Iu, Ju],                                           ...
+                      S.contact(cr).point.Idg_u,                        ...
+                      S.contact(cr).point.Jdg_u+1);
+  Vindex  = sub2ind([Iv, Jv],                                           ...
+                      S.contact(cr).point.Idg_v+1,                      ...
+                      S.contact(cr).point.Jdg_v);
+
+  xi_dg(NstrR(cr):NendR(cr)) = S.grid(dg).XI_rho(Rindex);
+  xi_dg(NstrU(cr):NendU(cr)) = S.grid(dg).XI_u  (Uindex);
+  xi_dg(NstrV(cr):NendV(cr)) = S.grid(dg).XI_v  (Vindex);
+  
+  eta_dg(NstrR(cr):NendR(cr)) = S.grid(dg).ETA_rho(Rindex);
+  eta_dg(NstrU(cr):NendU(cr)) = S.grid(dg).ETA_u  (Uindex);
+  eta_dg(NstrV(cr):NendV(cr)) = S.grid(dg).ETA_v  (Vindex);
 end
 
-ncwrite(ncname, 'Hweight', Hweight, [1 1]);
+ncwrite(ncname, 'xi_dg',  xi_dg);
+ncwrite(ncname, 'eta_dg', eta_dg);
 
-% Contact point locations.
+% Receiver grid contact point (XI,ETA) coordinates.
 
-X = NaN([1 Ndatum]);
-Y = NaN([1 Ndatum]);
+xi_rg  = NaN([1 Ndatum]);
+eta_rg = NaN([1 Ndatum]);
 
-for cr=1:Ncontact,
-  X(NstrR(cr):NendR(cr)) = S.contact(cr).point.Xrg_rho;
-  X(NstrU(cr):NendU(cr)) = S.contact(cr).point.Xrg_u;
-  X(NstrV(cr):NendV(cr)) = S.contact(cr).point.Xrg_v;
+for cr=1:Ncontact
+  xi_rg(NstrR(cr):NendR(cr)) = S.contact(cr).point.xrg_rho;
+  xi_rg(NstrU(cr):NendU(cr)) = S.contact(cr).point.xrg_u;
+  xi_rg(NstrV(cr):NendV(cr)) = S.contact(cr).point.xrg_v;
 
-  Y(NstrR(cr):NendR(cr)) = S.contact(cr).point.Yrg_rho;
-  Y(NstrU(cr):NendU(cr)) = S.contact(cr).point.Yrg_u;
-  Y(NstrV(cr):NendV(cr)) = S.contact(cr).point.Yrg_v;
+  eta_rg(NstrR(cr):NendR(cr)) = S.contact(cr).point.erg_rho;
+  eta_rg(NstrU(cr):NendU(cr)) = S.contact(cr).point.erg_u;
+  eta_rg(NstrV(cr):NendV(cr)) = S.contact(cr).point.erg_v;
 end
 
-ncwrite(ncname, 'Xrg', X);
-ncwrite(ncname, 'Yrg', Y);
+ncwrite(ncname, 'xi_rg',  xi_rg);
+ncwrite(ncname, 'eta_rg', eta_rg);
+
+% Donor grid cell bottom-left coordinates.
+
+Xdg = NaN([1 Ndatum]);
+Ydg = NaN([1 Ndatum]);
+
+for cr=1:Ncontact
+  dg = S.contact(cr).donor_grid;
+  [Ir,Jr] = size(S.grid(dg).I_rho);
+  [Iu,Ju] = size(S.grid(dg).I_u);
+  [Iv,Jv] = size(S.grid(dg).I_v);
+  Rindex  = sub2ind([Ir, Jr],                                           ...
+                      S.contact(cr).point.Idg_rho+1,                    ...
+                      S.contact(cr).point.Jdg_rho+1);
+  Uindex  = sub2ind([Iu, Ju],                                           ...
+                      S.contact(cr).point.Idg_u,                        ...
+                      S.contact(cr).point.Jdg_u+1);
+  Vindex  = sub2ind([Iv, Jv],                                           ...
+                      S.contact(cr).point.Idg_v+1,                      ...
+                      S.contact(cr).point.Jdg_v);
+  if (S.spherical)
+    Xdg(NstrR(cr):NendR(cr)) = G(dg).lon_rho(Rindex);
+    Xdg(NstrU(cr):NendU(cr)) = G(dg).lon_u  (Uindex);
+    Xdg(NstrV(cr):NendV(cr)) = G(dg).lon_v  (Vindex);
+  
+    Ydg(NstrR(cr):NendR(cr)) = G(dg).lat_rho(Rindex);
+    Ydg(NstrU(cr):NendU(cr)) = G(dg).lat_u  (Uindex);
+    Ydg(NstrV(cr):NendV(cr)) = G(dg).lat_v  (Vindex);
+  else
+    Xdg(NstrR(cr):NendR(cr)) = G(dg).x_rho(Rindex);
+    Xdg(NstrU(cr):NendU(cr)) = G(dg).x_u  (Uindex);
+    Xdg(NstrV(cr):NendV(cr)) = G(dg).x_v  (Vindex);
+  
+    Ydg(NstrR(cr):NendR(cr)) = G(dg).y_rho(Rindex);
+    Ydg(NstrU(cr):NendU(cr)) = G(dg).y_u  (Uindex);
+    Ydg(NstrV(cr):NendV(cr)) = G(dg).y_v  (Vindex);
+  end  
+end
+
+ncwrite(ncname, 'Xdg', Xdg);
+ncwrite(ncname, 'Ydg', Ydg);
+
+% Receiver grid contact points locations.
+
+Xrg = NaN([1 Ndatum]);
+Yrg = NaN([1 Ndatum]);
+
+for cr=1:Ncontact
+  Xrg(NstrR(cr):NendR(cr)) = S.contact(cr).point.Xrg_rho;
+  Xrg(NstrU(cr):NendU(cr)) = S.contact(cr).point.Xrg_u;
+  Xrg(NstrV(cr):NendV(cr)) = S.contact(cr).point.Xrg_v;
+
+  Yrg(NstrR(cr):NendR(cr)) = S.contact(cr).point.Yrg_rho;
+  Yrg(NstrU(cr):NendU(cr)) = S.contact(cr).point.Yrg_u;
+  Yrg(NstrV(cr):NendV(cr)) = S.contact(cr).point.Yrg_v;
+end
+
+ncwrite(ncname, 'Xrg', Xrg);
+ncwrite(ncname, 'Yrg', Yrg);
+
+% Horizontal linear interpolation weights.
+
+Lweight = NaN([nLweights Ndatum]);
+
+for cr=1:Ncontact
+  Lweight(1:nLweights, NstrR(cr):NendR(cr)) = S.Lweights(cr).H_rho;
+  Lweight(1:nLweights, NstrU(cr):NendU(cr)) = S.Lweights(cr).H_u;
+  Lweight(1:nLweights, NstrV(cr):NendV(cr)) = S.Lweights(cr).H_v;
+end
+
+ncwrite(ncname, 'Lweight', Lweight, [1 1]);
+
+% Horizontal quadratic interpolation weights.
+
+Qweight = NaN([nQweights Ndatum]);
+
+for cr=1:Ncontact
+  Qweight(1:nQweights, NstrR(cr):NendR(cr)) = S.Qweights(cr).H_rho;
+  Qweight(1:nQweights, NstrU(cr):NendU(cr)) = S.Qweights(cr).H_u;
+  Qweight(1:nQweights, NstrV(cr):NendV(cr)) = S.Qweights(cr).H_v;
+end
+
+ncwrite(ncname, 'Qweight', Qweight, [1 1]);
 
 % Several grid variables.
 
@@ -230,7 +405,7 @@ pn   (1:Ndatum) = FillValue;
 dndx (1:Ndatum) = FillValue;
 dmde (1:Ndatum) = FillValue;
 
-for cr=1:Ncontact,
+for cr=1:Ncontact
   angle(NstrR(cr):NendR(cr)) = S.contact(cr).point.angle;
   f    (NstrR(cr):NendR(cr)) = S.contact(cr).point.f;
   h    (NstrR(cr):NendR(cr)) = S.contact(cr).point.h;
@@ -252,7 +427,7 @@ ncwrite(ncname, 'dmde' , dmde );
 
 mask = NaN([1 Ndatum]);
 
-for cr=1:Ncontact,
+for cr=1:Ncontact
   mask(NstrR(cr):NendR(cr)) = S.contact(cr).point.mask_rho;
   mask(NstrU(cr):NendU(cr)) = S.contact(cr).point.mask_u;
   mask(NstrV(cr):NendV(cr)) = S.contact(cr).point.mask_v;
@@ -270,22 +445,22 @@ ncwrite(ncname, 'mask', mask);
 
 boundary = false([1 Ndatum]);
 
-for cr=1:Ncontact,
+for cr=1:Ncontact
   boundary(NstrU(cr):NendU(cr)) = S.contact(cr).point.boundary_u;
   boundary(NstrV(cr):NendV(cr)) = S.contact(cr).point.boundary_v;
 end
 
 on_boundary = zeros([1 Ndatum]);
 
-for i=1:Ndatum,
-  if (boundary(i)),
+for i=1:Ndatum
+  if (boundary(i))
     cr=contact_region(i);
     rg=S.contact(cr).receiver_grid;
-    for ib=1:4,
+    for ib=1:4
       xb = S.grid(rg).boundary(ib).Xuv;
       yb = S.grid(rg).boundary(ib).Yuv;
-      ind = (abs(xb-X(i)) < 4*eps & abs(yb-Y(i)) < 4*eps);
-      if (any(ind)),
+      ind = (abs(xb-Xrg(i)) < 4*eps & abs(yb-Yrg(i)) < 4*eps);
+      if (any(ind))
         on_boundary(i) = ib;
         break;
       end
@@ -293,6 +468,6 @@ for i=1:Ndatum,
   end
 end
 
-ncwrite(ncname, 'on_boundary', int32([on_boundary]));
+ncwrite(ncname, 'on_boundary', int32(on_boundary));
 
 return

@@ -43,9 +43,9 @@ function [varid, status] = nc_vdef(ncid, Var)
 %    status      Error flag
 %
 
-% svn $Id: nc_vdef.m 711 2014-01-23 20:36:13Z arango $
+% svn $Id: nc_vdef.m 938 2019-01-28 06:35:10Z arango $
 %=========================================================================%
-%  Copyright (c) 2002-2014 The ROMS/TOMS Group                            %
+%  Copyright (c) 2002-2019 The ROMS/TOMS Group                            %
 %    Licensed under a MIT/X style license                                 %
 %    See License_ROMS.txt                           Hernan G. Arango      %
 %=========================================================================%

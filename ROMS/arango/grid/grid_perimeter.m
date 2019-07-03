@@ -23,7 +23,8 @@ function S = grid_perimeter(G)
 %
 %    S.Ngrids                         - Number of nested grids
 %    S.Ncontact                       - Number of contact regions
-%    S.Nweights = 4                   - Number of horizontal weights
+%    S.nLweights = 4                  - Number of linear weights
+%    S.nQweights = 9                  - Number of quadratic weights
 %    S.Ndatum = 0                     - Total number of contact points
 %
 %    S.western_edge  = 1              - Western  boundary edge index
@@ -41,6 +42,10 @@ function S = grid_perimeter(G)
 %    S.grid(ng).M                     - Number of J-points (PSI)
 %
 %    S.grid(ng).refine_factor         - Refinement factor (0,3,5,7)
+%    S.grid(ng).parent_Imin           - Donor I-left   extract index
+%    S.grid(ng).parent_Imax           - Donor I-right  extract index
+%    S.grid(ng).parent_Jmin           - Donor J-bottom extract index
+%    S.grid(ng).parent_Jmax           - Donor J-top    extract index
 %
 %    S.grid(ng).XI_psi (:,:)          - ROMS XI-coordinates  (PSI)
 %    S.grid(ng).ETA_psi(:,:)          - ROMS ETA-coordinates (PSI)
@@ -85,19 +90,20 @@ function S = grid_perimeter(G)
 %    S.grid(ng).boundary(ib).Yuv(:)   - Boundary Y-coordinates (U,V)
 %
 
-% svn $Id: grid_perimeter.m 711 2014-01-23 20:36:13Z arango $
+% svn $Id: grid_perimeter.m 938 2019-01-28 06:35:10Z arango $
 %=========================================================================%
-%  Copyright (c) 2002-2014 The ROMS/TOMS Group                            %
+%  Copyright (c) 2002-2019 The ROMS/TOMS Group                            %
 %    Licensed under a MIT/X style license                                 %
 %    See License_ROMS.txt                           Hernan G. Arango      %
 %=========================================================================%
 
 % Initialize.
 
-S.Ngrids   = length(G);
-S.Ncontact = (S.Ngrids-1)*2;
-S.Nweights = 4;
-S.Ndatum   = 0;
+S.Ngrids    = length(G);
+S.Ncontact  = (S.Ngrids-1)*2;
+S.nLweights = 4;
+S.nQweights = 9;
+S.Ndatum    = 0;
 
 S.western_edge  = 1;
 S.southern_edge = 2;
@@ -124,6 +130,55 @@ for ng=1:S.Ngrids,
     if (~isempty(G(ng).refine_factor)),
       S.grid(ng).refine_factor = G(ng).refine_factor;
     end
+  end
+end
+
+% Insure that Grid 1 in the list of nested grids has a refinement factor
+% of zero. It is possible that Grid 1 has been extracted from a larger
+% and coarser grid and has the global attribute "refine_factor" with a
+% value greater than zero.  ROMS nested logic requires that Grid 1 has
+% a refine_factor = 0;
+
+if (S.grid(1).refine_factor ~= 0),
+  S.grid(1).refine_factor = 0;  
+end
+
+% Get refinement grid extraction indices from coarser donor grid, if any.
+% Otherwise set to special value (-999).  Check grid NetCDF global
+% attributes.  These fields were removed from G(:) in order to have an
+% array of similar structures.
+
+spval = -999;
+
+for ng=1:S.Ngrids,
+  Attributes = nc_getatt(G(ng).grid_name);
+
+  index = strcmp({Attributes.Name},'parent_Imin');
+  if (any(index)),
+    S.grid(ng).parent_Imin = Attributes(index).Value;
+  else
+    S.grid(ng).parent_Imin = spval;
+  end
+
+  index = strcmp({Attributes.Name},'parent_Imax');
+  if (any(index)),
+    S.grid(ng).parent_Imax = Attributes(index).Value;
+  else
+    S.grid(ng).parent_Imax = spval;
+  end
+
+  index = strcmp({Attributes.Name},'parent_Jmin');
+  if (any(index)),
+    S.grid(ng).parent_Jmin = Attributes(index).Value;
+  else
+    S.grid(ng).parent_Jmin = spval;
+  end
+
+  index = strcmp({Attributes.Name},'parent_Jmax');
+  if (any(index)),
+    S.grid(ng).parent_Jmax = Attributes(index).Value;
+  else
+    S.grid(ng).parent_Jmax = spval;
   end
 end
 

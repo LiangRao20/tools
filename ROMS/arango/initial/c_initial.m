@@ -25,9 +25,9 @@ function [status]=c_initial(S)
 %    status      Error flag.
 %
 
-% svn $Id: c_initial.m 711 2014-01-23 20:36:13Z arango $
+% svn $Id: c_initial.m 938 2019-01-28 06:35:10Z arango $
 %=========================================================================%
-%  Copyright (c) 2002-2014 The ROMS/TOMS Group                            %
+%  Copyright (c) 2002-2019 The ROMS/TOMS Group                            %
 %    Licensed under a MIT/X style license                                 %
 %    See License_ROMS.txt                           Hernan G. Arango      %
 %=========================================================================%
@@ -154,7 +154,8 @@ Vname.salt        = 'salt';
 %  Create initial conditions NetCDF file.
 %--------------------------------------------------------------------------
 
-[ncid,status]=mexnc('create',ncname,'clobber');
+access_mode = bitor(nc_netcdf4_classic, nc_clobber_mode)
+[ncid,status]=mexnc('create',ncname, access_mode);
 if (status ~= 0),
   disp('  ');
   disp(mexnc('strerror',status));

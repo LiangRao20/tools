@@ -4,7 +4,7 @@ function y = tanh(xin)
 
 %   C. Moler, 6-17-92
 %   Copyright (c) 1984-98 by The MathWorks, Inc.
-%   $Revision: 628 $  $Date: 2012-08-07 10:28:01 -0400 (Tue, 07 Aug 2012) $
+%   $Revision: 628 $  $Date: 2012-08-07 08:28:01 -0600 (Tue, 07 Aug 2012) $
 
 %   21 Oct 92 (jmh) -- fixed for matrix inputs
 %        2 Sep 93 (jmh) -- fixed for null matrix input

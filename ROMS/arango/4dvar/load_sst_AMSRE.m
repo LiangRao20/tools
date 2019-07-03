@@ -52,9 +52,9 @@ function [data]=load_sst_AMSRE(GRDfile, StartDay, EndDay, varargin)
 %          to read NetCDF data.
 %
 
-% svn $Id: load_sst_AMSRE.m 711 2014-01-23 20:36:13Z arango $
+% svn $Id: load_sst_AMSRE.m 938 2019-01-28 06:35:10Z arango $
 %=========================================================================%
-%  Copyright (c) 2002-2014 The ROMS/TOMS Group                            %
+%  Copyright (c) 2002-2019 The ROMS/TOMS Group                            %
 %    Licensed under a MIT/X style license           Hernan G. Arango      %
 %    See License_ROMS.txt                           John Wilkin           %
 %=========================================================================%

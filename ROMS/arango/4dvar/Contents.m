@@ -11,6 +11,9 @@
 %   d_observations    - Driver to process 4D-Var observation NetCDF file.
 %
 %
+%   obs_extract       - Extracts and creates observation NetCDF files
+%                       from input data assimilation observation NetCDF
+%                       files at the requested interval.
 %   obs_read          - Reads observation NetCDF file and load all data
 %                         into a structure array.
 %   obs_write         - Writes all observation data in structure array into
@@ -120,9 +123,9 @@
 %                         conditions.
 %
 
-% svn $Id: Contents.m 711 2014-01-23 20:36:13Z arango $
+% svn $Id: Contents.m 938 2019-01-28 06:35:10Z arango $
 %===========================================================================%
-%  Copyright (c) 2002-2014 The ROMS/TOMS Group                              %
+%  Copyright (c) 2002-2019 The ROMS/TOMS Group                              %
 %    Licensed under a MIT/X style license                                   %
 %    See License_ROMS.txt                           Hernan G. Arango        %
 %===========================================================================%

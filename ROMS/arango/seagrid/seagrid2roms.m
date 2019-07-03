@@ -18,9 +18,9 @@ function seagrid2roms (theSeagridFile, theRomsFile, theGridTitle)
 %                      [umask, vmask, pmask] = uvp_masks(rmask)
 %                      nc_write (...)
   
-% svn $Id: seagrid2roms.m 647 2013-01-22 23:40:00Z arango $
+% svn $Id: seagrid2roms.m 940 2019-01-28 07:22:54Z arango $
 %===========================================================================%
-%  Copyright (c) 2002-2013 The ROMS/TOMS Group                              %
+%  Copyright (c) 2002-2019 The ROMS/TOMS Group                              %
 %    Licensed under a MIT/X style license                                   %
 %    See License_ROMS.txt                           Hernan G. Arango        %
 %===========================================================================%
@@ -115,7 +115,7 @@ max_depth = s.clipping_depths(2);
 
 bathymetry(find(isnan(bathymetry))) = min_depth;
 bathymetry(bathymetry<min_depth) = min_depth;
-bathemetry(bathymetry>max_depth) = max_depth;
+bathymetry(bathymetry>max_depth) = max_depth;
 
 spaced_x = s.spaced_grids{1};
 spaced_y = s.spaced_grids{2};

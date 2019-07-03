@@ -60,9 +60,9 @@ function [ssh,err]=biconj(K,rhs_r2d,ssh_guess,Niter);
 %    ad_r2d_bc:  Sets adjoint boundary conditions
 %
 
-% svn $Id: biconj.m 711 2014-01-23 20:36:13Z arango $
+% svn $Id: biconj.m 938 2019-01-28 06:35:10Z arango $
 %===========================================================================%
-%  Copyright (c) 2002-2014 The ROMS/TOMS Group                              %
+%  Copyright (c) 2002-2019 The ROMS/TOMS Group                              %
 %    Licensed under a MIT/X style license           Andrew M. Moore         %
 %    See License_ROMS.txt                           Hernan G. Arango        %
 %===========================================================================%

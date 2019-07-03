@@ -17,9 +17,9 @@ function [S] = read_contact(ncname)
 %    S           Nested grids Contact Points structure (struct array)
 %
 
-% svn $Id: read_contact.m 711 2014-01-23 20:36:13Z arango $
+% svn $Id: read_contact.m 938 2019-01-28 06:35:10Z arango $
 %=========================================================================%
-%  Copyright (c) 2002-2014 The ROMS/TOMS Group                            %
+%  Copyright (c) 2002-2019 The ROMS/TOMS Group                            %
 %    Licensed under a MIT/X style license                                 %
 %    See License_ROMS.txt                           Hernan G. Arango      %
 %=========================================================================%
@@ -30,10 +30,11 @@ I = nc_inq(ncname);
 
 % Get dimension parameters. 
 
-Ngrids   = I.Dimensions(strcmp({I.Dimensions.Name},'Ngrids'  )).Length;
-Ncontact = I.Dimensions(strcmp({I.Dimensions.Name},'Ncontact')).Length;
-Nweights = I.Dimensions(strcmp({I.Dimensions.Name},'Nweights')).Length;
-Ndatum   = I.Dimensions(strcmp({I.Dimensions.Name},'datum'   )).Length;
+Ngrids    = I.Dimensions(strcmp({I.Dimensions.Name},'Ngrids'   )).Length;
+Ncontact  = I.Dimensions(strcmp({I.Dimensions.Name},'Ncontact' )).Length;
+nLweights = I.Dimensions(strcmp({I.Dimensions.Name},'nLweights')).Length;
+nQweights = I.Dimensions(strcmp({I.Dimensions.Name},'nQweights')).Length;
+Ndatum    = I.Dimensions(strcmp({I.Dimensions.Name},'datum'    )).Length;
 
 %--------------------------------------------------------------------------
 % Check if Nested Grid NetCDF are available and get their grid structures.
@@ -60,21 +61,10 @@ for ng=1:Ngrids
   gotfile(ng) = exist(char(Gnames(ng)), 'file');
 end
 
-% Get nested grids structures. If the grid structure have the parent
-% fields, remove them to have an array of similar structures.
+% Get nested grids structure array.
 
 if (all(gotfile)),
-  parent = {'parent_grid',                                              ...
-            'parent_Imin', 'parent_Imax',                               ...
-            'parent_Jmin', 'parent_Jmax'};
-  for ng=1:Ngrids,
-    g = get_roms_grid(char(Gnames(ng)));
-    if (isfield(g, 'parent_grid')),
-      G(ng) = rmfield(g, parent);
-    else
-      G(ng) = g;
-    end
-  end
+  G = grids_structure(Gnames);
 end
 
 % Initialize structure if perimeter, boundary edges, and connectivity
@@ -95,6 +85,7 @@ par_list = {'Lm', 'Mm',                                                 ...
             'coincident', 'composite', 'mosaic', 'refinement',          ...
             'refine_factor',                                            ...
             'donor_grid', 'receiver_grid',                              ...
+            'I_left', 'I_right', 'J_bottom', 'J_top',                   ...
             'NstrR', 'NendR',                                           ...
             'NstrU', 'NendU',                                           ...
             'NstrV', 'NendV'};
@@ -114,12 +105,13 @@ P.refinement = logical(P.refinement);
 if (all(gotfile)),
   S.Ndatum = Ndatum;
 else
-  S.Ngrids   = Ngrids;               % Grid NetCDF filenames in global
-  S.Ncontact = Ncontact;             % attributes are not available.
-  S.Nweights = Nweights;             % Therefore, build the S.grid
-  S.Ndatum   = Ndatum;               % substructure with the few
-                                     % informations that it is
-  S.western_edge  = 1;               % available in the NetCDF file.
+  S.Ngrids    = Ngrids;              % Grid NetCDF filenames in global
+  S.Ncontact  = Ncontact;            % attributes are not available.
+  S.nLweights = nLweights;           % Therefore, build the S.grid
+  S.nQweights = nQweights;           % substructure with the few
+  S.Ndatum    = Ndatum;              % information that it is
+                                     % available in the NetCDF file.
+  S.western_edge  = 1;
   S.southern_edge = 2;
   S.eastern_edge  = 3;
   S.northern_edge = 4;
@@ -136,6 +128,10 @@ else
     S.grid(ng).M  = P.Mm(ng)+1;
   
     S.grid(ng).refine_factor = P.refine_factor(ng);
+    S.grid(ng).parent_Imin   = P.I_left(ng);
+    S.grid(ng).parent_Imax   = P.I_right(ng);
+    S.grid(ng).parent_Jmin   = P.J_bottom(ng);
+    S.grid(ng).parent_Jmax   = P.J_top(ng);
   end
 end
 
@@ -145,7 +141,7 @@ var_list = {'contact_region',                                           ...
             'on_boundary',                                              ...
             'Idg', 'Jdg',                                               ...
             'Irg', 'Jrg',                                               ...
-            'Hweight',                                                  ...
+            'Lweight', 'Qweight',                                       ...
             'h', 'f', 'pm', 'pn', 'dndx', 'dmde',                       ...
             'Xrg', 'Yrg', 'angle', 'mask'};
 
@@ -202,11 +198,18 @@ for n=1:Ncontact,
   S.contact(n).point.mask_u       = C.mask (P.NstrU(n):P.NendU(n));
   S.contact(n).point.mask_v       = C.mask (P.NstrV(n):P.NendV(n));
 
-  S.weights(n).H_rho              = C.Hweight(1:Nweights,               ...
+  S.Lweights(n).H_rho             = C.Lweight(1:nLweights,              ...
                                               P.NstrR(n):P.NendR(n));
-  S.weights(n).H_u                = C.Hweight(1:Nweights,               ...
+  S.Lweights(n).H_u               = C.Lweight(1:nLweights,              ...
                                               P.NstrU(n):P.NendU(n));
-  S.weights(n).H_v                = C.Hweight(1:Nweights,               ...
+  S.Lweights(n).H_v               = C.Lweight(1:nLweights,              ...
+                                              P.NstrV(n):P.NendV(n));
+
+  S.Qweights(n).H_rho             = C.Qweight(1:nQweights,              ...
+                                              P.NstrR(n):P.NendR(n));
+  S.Qweights(n).H_u               = C.Qweight(1:nQweights,              ...
+                                              P.NstrU(n):P.NendU(n));
+  S.Qweights(n).H_v               = C.Qweight(1:nQweights,              ...
                                               P.NstrV(n):P.NendV(n));
 end
 

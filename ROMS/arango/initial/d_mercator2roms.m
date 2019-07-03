@@ -7,9 +7,9 @@
 %  as a prototype for their application.
 %
 
-% svn $Id: d_mercator2roms.m 711 2014-01-23 20:36:13Z arango $
+% svn $Id: d_mercator2roms.m 938 2019-01-28 06:35:10Z arango $
 %=========================================================================%
-%  Copyright (c) 2002-2014 The ROMS/TOMS Group                            %
+%  Copyright (c) 2002-2019 The ROMS/TOMS Group                            %
 %    Licensed under a MIT/X style license                                 %
 %    See License_ROMS.txt                           Hernan G. Arango      %
 %=========================================================================%
@@ -262,7 +262,7 @@ if (CREATE),
   disp([ 'Writing initial conditions ...']);
   disp(' ')
 
-  [status]=nc_write(INIname, 'spherical',   'T');
+  [status]=nc_write(INIname, 'spherical',   S.spherical);
   [status]=nc_write(INIname, 'Vtransform',  S.Vtransform);
   [status]=nc_write(INIname, 'Vstretching', S.Vstretching);
   [status]=nc_write(INIname, 'theta_s',     S.theta_s);

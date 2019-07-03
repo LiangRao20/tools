@@ -20,17 +20,18 @@ function [S,G] = contact(Gnames, Cname, varargin)
 %    Lmask       Switch to remove Contact Points over land
 %                  (default false)
 %
-%    MaskInterp  Switch to interpolate PSI-, U- and V-mask (true) or
-%                  computed from interpolated RHO-mask (false)
-%                  (default true)
+%    MaskInterp  Switch to interpolate PSI-, U- and V-masks (true) or
+%                  computed from interpolated RHO-mask (false) using
+%                  the "uvp_mask" script. We highly recommend for this
+%                  switch to always be false (default false)
 %
 %    Lplot       Switch to plot various Contact Points figures
-%                  (default true)
+%                  (default false)
 %
 % On Output:
 %
 %    S           Nested grids Contact Points structure (struct array)
-%    G           Nested grids structure (1 x Ngrid struct array)
+%    G           Nested grids structure (1 x Ngrids struct array)
 %
 %
 % Calls to External Functions:
@@ -46,7 +47,8 @@ function [S,G] = contact(Gnames, Cname, varargin)
 %
 %    S.Ngrids                              - Number of nested grids
 %    S.Ncontact                            - Number of contact regions
-%    S.Nweights = 4                        - Number of horizontal weights
+%    S.NLweights = 4                       - Number of linear weights
+%    S.NQweights = 9                       - Number of quadratic weights
 %    S.Ndatum                              - Total number of contact points
 %
 %    S.western_edge  = 1                   - Western  boundary edge index
@@ -64,6 +66,10 @@ function [S,G] = contact(Gnames, Cname, varargin)
 %    S.grid(ng).M                          - Number of J-points (PSI)
 %
 %    S.grid(ng).refine_factor              - Refinement factor (0,3,5,7)
+%    S.grid(ng).parent_Imin                - Donor I-left   extract index
+%    S.grid(ng).parent_Imax                - Donor I-right  extract index
+%    S.grid(ng).parent_Jmin                - Donor J-bottom extract index
+%    S.grid(ng).parent_Jmax                - Donor J-top    extract index
 %
 %    S.grid(ng).I_psi(:,:)                 - ROMS I-indices at PSI-points
 %    S.grid(ng).J_psi(:,:)                 - ROMS J-indices at PSI-points
@@ -99,24 +105,25 @@ function [S,G] = contact(Gnames, Cname, varargin)
 %    S.contact(cr).receiver_grid           - Receiver grid number
 %    S.contact(cr).coincident              - Coincident boundary switch 
 %    S.contact(cr).composite               - Composite grid switch
+%    S.contact(cr).hybrid                  - Hybrid nested grids switch
 %    S.contact(cr).mosaic                  - Mosaic grid switch
 %    S.contact(cr).refinement              - Refinement grid switch
 %
-%    S.contact(cr).interior.okey           - true/false logical
+%    S.contact(cr).interior.okay           - true/false logical
 %
 %    S.contact(cr).interior.Xdg(:)         - (X,Y) coordinates and (I,J)
 %    S.contact(cr).interior.Ydg(:)           indices of donor grid points
 %    S.contact(cr).interior.Idg(:)           inside the receiver grid
 %    S.contact(cr).interior.Jdg(:)           perimeter, [] if false 
 %
-%    S.contact(cr).corners.okey            - true/false logical
+%    S.contact(cr).corners.okay            - true/false logical
 %
 %    S.contact(cr).corners.Xdg(:)          - (X,Y) coordinates and (I,J)
 %    S.contact(cr).corners.Ydg(:)            indices of donor grid points
 %    S.contact(cr).corners.Idg(:)            corners laying on receiver
 %    S.contact(cr).corners.Idg(:)            grid perimeter, [] if false
 %
-%    S.contact(cr).boundary(ib).okey       - true/false logical
+%    S.contact(cr).boundary(ib).okay       - true/false logical
 %    S.contact(cr).boundary(ib).match(:)   - Donor matching points logical
 %
 %    S.contact(cr).boundary(ib).Xdg(:)     - (X,Y) coordinates and (I,J)
@@ -205,26 +212,30 @@ function [S,G] = contact(Gnames, Cname, varargin)
 %    S.refined(cr).mask_u(:,:)               from donor grid at RHO-, PSI-,
 %    S.refined(cr).mask_v(:,:)               U- and V-points.
 %
-%    S.weights(cr).H_rho(:,4)              - Contact points weights (H) to
-%    S.weights(cr).H_u(:,4)                  horizontally interpolate
-%    S.weights(cr).H_v(:,4)                  reciever data from donor grid
+%    S.Lweights(cr).H_rho(4,:)             - Linear weights (H) to 
+%    S.Lweights(cr).H_u(4,:)                 horizontally interpolate
+%    S.Lweights(cr).H_v(4,:)                 reciever data from donor grid
+%
+%    S.Qweights(cr).H_rho(9,:)             - Quadratic weights (H) to
+%    S.Qweights(cr).H_u(9,:)                 horizontally interpolate
+%    S.Qweights(cr).H_v(9,:)                 reciever data from donor grid
 %
 % The "refined" sub-structure is only relevant when processing the contact
 % region of a refinement grid. Otherwise, it will be empty.  The setting
-% of Land/Sea masking in the contact region is critical. Usually, it is
-% better to linearly interpolate the finer grid U- and V-masks from coarser
-% grid than recomputing via "uvp_masks". The recomputed U- and V-masks may
-% be one point smaller or larger. Use the "MaskInterp" switch to either
-% interpolate (true) or use "uvp_masks" (false).  Recall that we are not
+% of Land/Sea masking in the contact region is critical. Usually, the
+% RHO-mask is interpolated from the coarser grid and the U- and V-masks
+% are computed from the interpolated RHO-mask using "uvp_masks".  The 
+% "MaskInterp" switch can be used to either interpolate (true) their
+% values or compute using "uvp_masks" (false).  Recall that we are not
 % modifying the original refined grid mask, just computing the mask in
 % the contact region adjacent to the finer grid from the coarser grid mask.
 % This is only relevant when there are land/sea masking features in any
 % of the refinement grid physical boundaries. If so, the user just needs to
 % experiment with "MaskInterp" and edit such points during post-processing.
 %
-% The locations of the spatial interpolation weights in the donor grid
-% with respect the receiver grid contact region at a particulat contat
-% point x(Irg,Jrg,Krg) are:
+% The locations of the spatial linear interpolation weights in the donor
+% grid with respect the receiver grid contact region at a particulat
+% contact point x(Irg,Jrg,Krg) are:
 %
 %                       8___________7   (Idg+1,Jdg+1,Kdg)
 %                      /.          /|
@@ -246,17 +257,17 @@ function [S,G] = contact(Gnames, Cname, varargin)
 % ROMS.  Notice that if the contact point "cp" between donor and
 % receiver grids are coincident:
 %
-%          S.weights(cr).H_rho(cp,1) = 1.0 
-%          S.weights(cr).H_rho(cp,2) = 0.0 
-%          S.weights(cr).H_rho(cp,3) = 0.0 
-%          S.weights(cr).H_rho(cp,4) = 0.0 
+%          S.Lweights(cr).H_rho(1,cp) = 1.0 
+%          S.Lweights(cr).H_rho(2,cp) = 0.0 
+%          S.Lweights(cr).H_rho(3,cp) = 0.0 
+%          S.Lweights(cr).H_rho(4,cp) = 0.0 
 % Then
 %          receiver_value(Irg,Jrg) = donor_value(Idg,Jdg)
 %
 
-% svn $Id: contact.m 717 2014-02-11 02:52:14Z arango $
+% svn $Id: contact.m 938 2019-01-28 06:35:10Z arango $
 %=========================================================================%
-%  Copyright (c) 2002-2014 The ROMS/TOMS Group                            %
+%  Copyright (c) 2002-2019 The ROMS/TOMS Group                            %
 %    Licensed under a MIT/X style license                                 %
 %    See License_ROMS.txt                           Hernan G. Arango      %
 %=========================================================================%
@@ -264,8 +275,8 @@ function [S,G] = contact(Gnames, Cname, varargin)
 % Initialize.
 
 Lmask = false;
-MaskInterp = true;
-Lplot = true;
+MaskInterp = false;
+Lplot = false;
 
 switch numel(varargin)
   case 1
@@ -286,23 +297,9 @@ Ncontact = (Ngrids-1)*2;           % number of contact regions
 % Get nested grids information and set perimeters and boundary edges.
 %--------------------------------------------------------------------------
 
-% Get nested grid structures.  If the grid structure have the parent
-% fields, remove them to have an array of similar structures.
+% Get nested grid structures.
 
-parent = {'parent_grid',                                                ...
-          'parent_Imin', 'parent_Imax',                                 ...
-          'parent_Jmin', 'parent_Jmax'};
-
-for n=1:Ngrids,
-  g = get_roms_grid(char(Gnames(n)));
-  if (isfield(g, 'parent_grid')),
-    G(n) = rmfield(g, parent);
-  else
-    G(n) = g;
-  end
-end
-
-clear g
+G = grids_structure(Gnames);
 
 % Set nested grids perimeters and boundary edges.
 
@@ -320,13 +317,13 @@ S = grid_connections(G, S);
 
 Ndatum = 0;
 
-for cr=1:Ncontact,
+for cr=1:Ncontact
   dg = S.contact(cr).donor_grid;
   rg = S.contact(cr).receiver_grid;
-  if (S.contact(cr).coincident),
+  if (S.contact(cr).coincident)
     P = coincident (cr, dg, rg, Lmask, G, S);
     S.contact(cr).point = P;
-  elseif (S.contact(cr).refinement),
+  elseif (S.contact(cr).refinement)
     [P, R] = refinement (cr, dg, rg, Lmask, G, S, MaskInterp);
     S.contact(cr).point = P;
     S.refined(cr) = R;
@@ -350,20 +347,26 @@ S = boundary_contact(S);
 %--------------------------------------------------------------------------
 % Set contact points horizontal interpolation weights.
 %--------------------------------------------------------------------------
+%
+% The weights are not scaled according to the land/sea mask.  This is done
+% in ROMS because the land/sea masking time dependecy when wetting and
+% drying is activated for an application.
 
-S = Hweights(G, S);
+ImposeMask = false;
+
+S = Hweights(G, S, ImposeMask);
 
 %--------------------------------------------------------------------------
 % Create and write out Contact Point data into output NetCDF file.
 %--------------------------------------------------------------------------
 
-write_contact(Cname, S);
+write_contact(Cname, S, G);
 
 %--------------------------------------------------------------------------
 % Plot contact areas and contact points.
 %--------------------------------------------------------------------------
 
-if (Lplot),
+if (Lplot)
   plot_contact(G, S);
 end
 
@@ -449,14 +452,30 @@ function R = refine_coordinates(cr, dg, rg, G, S, MaskInterp)
 
 spherical = S.spherical;
 
-% Set TriScatteredInterp method.  Use 'natural' for Natural Neighbor
-% Interpolation Method.  This does NOT implies Nearest Neighbor
-% Interpolation.  Natural Neighbor Interpolation is a triangulantion
-% based method that has an area-of-influence weighting associated
-% with each sample data point.  It is C1 continous except at the
-% sample locations.
+% Check Matlab version and use "griddedInterpolant" (release 2011b), if
+% available. Otherwise, use "interp2".  The "griddedInterpolant" is
+% faster the interpolant can be used several times for the same C-grid
+% type.  Nowadays, "interp2" calls "griddedInterpolant" and generates
+% identical results but is less efficient.
 
-method = 'natural';
+Mversion = version('-release');
+Vyear    = sscanf(Mversion, '%i');
+
+if (Vyear > 2011)
+  UseGriddedInterpolant = true;
+else
+  UseGriddedInterpolant = false;
+end
+
+% Set method (linear or cubic spline) for interpolation of grid coordinates
+% (x,y) and/or (lon,lat) coordinates. The method is 'linear' for idealized
+% Cartesian coordinates application or 'cubic' for spherical application.
+
+if (spherical)
+  method = 'spline';          % C2 continuity: first and second derivatives
+else
+  method = 'linear';          % C0 continuity
+end
 
 %--------------------------------------------------------------------------
 % Set extraction indices with respect the donor (coarse) grid.
@@ -511,9 +530,9 @@ JrF = [JpF(1)-half JpF+half];                               % RHO-points
 [YuF, XuF] = meshgrid(JrF, IpF);                            % U-points
 [YvF, XvF] = meshgrid(JpF, IrF);                            % V-points
 
-%--------------------------------------------------------------------------
+%==========================================================================
 % Extract larger receiver (fine) grid from donor (coarse) grid.
-%--------------------------------------------------------------------------
+%==========================================================================
 
 R.spherical = spherical;
 R.uniform   = G(dg).uniform;
@@ -527,54 +546,40 @@ R.uniform   = G(dg).uniform;
 R.xi_rho  = XrF;
 R.eta_rho = YrF;
 
-if (spherical),
-  if (~isempty(G(dg).x_rho) && ~isempty(G(dg).y_rho)),
+if ((~isempty(G(dg).x_rho)   && ~isempty(G(dg).y_rho))     ||           ...
+    (~isempty(G(dg).lon_rho) && ~isempty(G(dg).lat_rho)))
 
-    FCr = TriScatteredInterp(XrC(:), YrC(:),                            ...
-                             G(dg).x_rho(:), method);
-
-                               R.x_rho = FCr(XrF, YrF);
-    FCr.V = G(dg).y_rho(:);    R.y_rho = FCr(XrF, YrF); 
-
-    FSr = TriScatteredInterp(G(dg).x_rho(:), G(dg).y_rho(:),            ...
-                             G(dg).lon_rho(:), method);
-
-                               R.lon_rho = FSr(R.x_rho, R.y_rho);
-    FSr.V = G(dg).lat_rho(:);  R.lat_rho = FSr(R.x_rho, R.y_rho);
-   
-  elseif (~isempty(G(dg).lon_rho) && ~isempty(G(dg).lat_rho)),
-
-    FSr = TriScatteredInterp(XrC(:), YrC(:),                            ...
-                             G(dg).lon_rho(:), method);
-
-                               R.lon_rho = FSr(XrF, YrF);
-    FSr.V = G(dg).lat_rho(:);  R.lat_rho = FSr(XrF, YrF);
-
-    FCr = TriScatteredInterp(G(dg).lon_rho(:), G(dg).lat_rho(:),        ...
-                             G(dg).x_rho(:),method);
-
-                               R.x_rho = RCr(R.lon_rho, R.lat_rho);
-    FCr.V = G(dg).y_rho(:);    R.y_rho = RCr(R.lon_rho, R.lat_rho);  
+  if (~isempty(G(dg).x_rho) && ~isempty(G(dg).y_rho))
+    if (UseGriddedInterpolant)
+      FCr = griddedInterpolant(XrC, YrC, G(dg).x_rho, method);
+  
+                                      R.x_rho = FCr(XrF, YrF);
+      FCr.Values = G(dg).y_rho;       R.y_rho = FCr(XrF, YrF); 
+    else
+      R.x_rho = interp2(XrC', YrC', G(dg).x_rho', XrF, YrF, method);
+      R.y_rho = interp2(XrC', YrC', G(dg).y_rho', XrF, YrF, method);
+    end
+    [Im, Jm] = size(R.x_rho);
   end
-  
-  [Im, Jm] = size(R.lon_rho);
-  [Jrg, Irg] = meshgrid(1:Jm, 1:Im);
-  R.Irg_rho = Irg - 4;                              % ROMS indices:
-  R.Jrg_rho = Jrg - 4;                              % -3:L+2, -3:M+2
-  
-else
 
-  FCr = TriScatteredInterp(XrC(:), YrC(:),                              ...
-                           G(dg).x_rho(:), method);
+  if (spherical && ~isempty(G(dg).lon_rho) && ~isempty(G(dg).lat_rho))
+    if (UseGriddedInterpolant)
+      FSr = griddedInterpolant(XrC, YrC, G(dg).lon_rho, method);
 
-                               R.x_rho = FCr(XrF, YrF);
-  FCr.V = G(dg).y_rho(:);      R.y_rho = FCr(XrF, YrF); 
+                                      R.lon_rho = FSr(XrF, YrF);
+      FSr.Values = G(dg).lat_rho;     R.lat_rho = FSr(XrF, YrF);
+    else
+      R.lon_rho = interp2(XrC', YrC', G(dg).lon_rho', XrF, YrF, method);
+      R.lat_rho = interp2(XrC', YrC', G(dg).lat_rho', XrF, YrF, method);
+    end
+    [Im, Jm] = size(R.lon_rho);
+  end
 
-  [Im, Jm] = size(R.x_rho);
   [Jrg, Irg] = meshgrid(1:Jm, 1:Im);
   R.Irg_rho = Irg - 4;                               % ROMS indices:
   R.Jrg_rho = Jrg - 4;                               % -3:L+2, -3:M+2
-
+else
+  error('REFINE_COORDINATES: unable to find coordinates at RHO-points') 
 end
 
 % PSI-points coordinates.
@@ -582,53 +587,40 @@ end
 R.xi_psi  = XpF;
 R.eta_psi = YpF;
 
-if (spherical),
-  if (~isempty(G(dg).x_psi) && ~isempty(G(dg).y_psi)),
+if ((~isempty(G(dg).x_psi)   && ~isempty(G(dg).y_psi))     ||           ...
+    (~isempty(G(dg).lon_psi) && ~isempty(G(dg).lat_psi)))
 
-    FCp = TriScatteredInterp(XpC(:), YpC(:),                            ...
-                             G(dg).x_psi(:), method);
+  if (~isempty(G(dg).x_psi) && ~isempty(G(dg).y_psi))
+    if (UseGriddedInterpolant)
+      FCp = griddedInterpolant(XpC, YpC, G(dg).x_psi, method);
 
-                               R.x_psi = FCp(XpF, YpF);
-    FCp.V = G(dg).y_psi(:);    R.y_psi = FCp(XpF, YpF); 
+                                      R.x_psi = FCp(XpF, YpF);
+      FCp.Values = G(dg).y_psi;       R.y_psi = FCp(XpF, YpF); 
+    else
+      R.x_psi = interp2(XpC', YpC', G(dg).x_psi', XpF, YpF, method);
+      R.y_psi = interp2(XpC', YpC', G(dg).y_psi', XpF, YpF, method);
+    end
+    [Im, Jm] = size(R.x_psi);
+  end  
 
-    FSp = TriScatteredInterp(G(dg).x_psi(:), G(dg).y_psi(:),            ...
-                             G(dg).lon_psi(:), method);
+  if (spherical && ~isempty(G(dg).lon_psi) && ~isempty(G(dg).lat_psi))
+    if (UseGriddedInterpolant)
+      FSp = griddedInterpolant(XpC, YpC, G(dg).lon_psi, method);
 
-                               R.lon_psi = FSp(R.x_psi, R.y_psi);
-    FSp.V = G(dg).lat_psi(:);  R.lat_psi = FSp(R.x_psi, R.y_psi);
-  
-  elseif (~isempty(G(dg).lon_psi) && ~isempty(G(dg).lat_psi)),
-
-    FSp = TriScatteredInterp(XpC(:), YpC(:),                            ...
-                             G(dg).lon_psi(:), method);
-
-                               R.lon_psi = FSp(XpF, YpF);
-    FSp.V = G(dg).lat_psi(:);  R.lat_psi = FSp(XpF, YpF);
-
-    FCp = TriScatteredInterp(G(dg).lon_psi(:), G(dg).lat_psi(:),        ...
-                             G(dg).x_psi(:), method);
-
-                               R.x_rho = RCp(R.lon_rho, R.lat_rho);
-    FCp.V = G(dg).y_rho(:);    R.y_rho = RCp(R.lon_rho, R.lat_rho);  
+                                      R.lon_psi = FSp(XpF, YpF);
+      FSp.Values = G(dg).lat_psi;     R.lat_psi = FSp(XpF, YpF);
+    else
+      R.lon_psi = interp2(XpC', YpC', G(dg).lon_psi', XpF, YpF, method);
+      R.lat_psi = interp2(XpC', YpC', G(dg).lat_psi', XpF, YpF, method);
+    end
+    [Im, Jm] = size(R.lon_psi);
   end
 
-  [Im, Jm] = size(R.lon_psi);
   [Jrg, Irg] = meshgrid(1:Jm, 1:Im);
   R.Irg_psi = Irg - 3;                               % ROMS indices:
   R.Jrg_psi = Jrg - 3;                               % -2:L+2, -2:M+2
-
 else
-
-  FCp = TriScatteredInterp(XpC(:), YpC(:),                              ...
-                           G(dg).x_psi(:), method);
-
-                               R.x_psi = FCp(XpF, YpF);
-  FCp.V = G(dg).y_psi(:);      R.y_psi = FCp(XpF, YpF); 
-
-  [Im, Jm] = size(R.x_psi);
-  [Jrg, Irg] = meshgrid(1:Jm, 1:Im);
-  R.Irg_psi = Irg - 3;                               % ROMS indices:
-  R.Jrg_psi = Jrg - 3;                               % -2:L+2, -2:M+2
+  error('REFINE_COORDINATES: unable to find coordinates at PSI-points') 
 end
 
 % U-points coordinates.
@@ -636,54 +628,40 @@ end
 R.xi_u  = XuF;
 R.eta_u = YuF;
 
-if (spherical),
-  if (~isempty(G(dg).x_u) && ~isempty(G(dg).y_u)),
+if ((~isempty(G(dg).x_u)   && ~isempty(G(dg).y_u))    ||                ...
+    (~isempty(G(dg).lon_u) && ~isempty(G(dg).lat_u)))
 
-    FCu = TriScatteredInterp(XuC(:), YuC(:),                            ...
-                             G(dg).x_u(:), method);
+  if (~isempty(G(dg).x_u) && ~isempty(G(dg).y_u))
+    if (UseGriddedInterpolant)
+      FCu = griddedInterpolant(XuC, YuC, G(dg).x_u, method);
 
-                               R.x_u = FCu(XuF, YuF);
-    FCu.V = G(dg).y_u(:);      R.y_u = FCu(XuF, YuF); 
-
-    FSu = TriScatteredInterp(G(dg).x_u(:), G(dg).y_u(:),                ...
-                             G(dg).lon_u(:), method);
-
-                               R.lon_u = FSu(R.x_u, R.y_u);
-    FSu.V = G(dg).lat_u(:);    R.lat_u = FSu(R.x_u, R.y_u);
+                                      R.x_u = FCu(XuF, YuF);
+      FCu.Values = G(dg).y_u;         R.y_u = FCu(XuF, YuF); 
+    else
+      R.x_u = interp2(XuC', YuC', G(dg).x_u', XuF, YuF, method);
+      R.y_u = interp2(XuC', YuC', G(dg).y_u', XuF, YuF, method);
+    end
+    [Im, Jm] = size(R.x_u);
+  end  
   
-  elseif (~isempty(G(dg).lon_u) && ~isempty(G(dg).lat_u)),
+  if (spherical && ~isempty(G(dg).lon_u) && ~isempty(G(dg).lat_u))
+    if (UseGriddedInterpolant)
+      FSu = griddedInterpolant(XuC, YuC, G(dg).lon_u, method);
 
-    FSu = TriScatteredInterp(XuC(:), YuC(:),                            ...
-                             G(dg).lon_u(:), method);
+                                      R.lon_u = FSu(XuF, YuF);
+      FSu.Values = G(dg).lat_u;       R.lat_u = FSu(XuF, YuF);
+    else
+      R.lon_u = interp2(XuC', YuC', G(dg).lon_u', XuF, YuF, method);
+      R.lat_u = interp2(XuC', YuC', G(dg).lat_u', XuF, YuF, method);
+    end
+    [Im, Jm]=size(R.lon_u);
+  end  
 
-                               R.lon_u = FSu(XuF, YuF);
-    FSu.V = G(dg).lat_u(:);    R.lat_u = FSu(XuF, YuF);
-
-    FCu = TriScatteredInterp(G(dg).lon_u(:), G(dg).lat_u(:),            ...
-                             G(dg).x_u(:), method);
-
-                               R.x_u = FCu(R.lon_u, R.lat_u);
-    FCu.V = G(dg).y_u(:);      R.y_u = FCu(R.lon_u, R.lat_u);  
-  end
-
-  [Im, Jm]=size(R.lon_u);
   [Jrg, Irg] = meshgrid(1:Jm, 1:Im);
   R.Irg_u = Irg - 3;                                % ROMS indices:
   R.Jrg_u = Jrg - 4;                                % -2:L+2, -3:M+2
-
 else
-
-  FCu = TriScatteredInterp(XuC(:), YuC(:),                              ...
-                           G(dg).x_u(:), method);
-
-                              R.x_u = FCu(XuF, YuF);
-  FCu.V = G(dg).y_u(:);       R.y_u = FCu(XuF, YuF); 
-
-  [Im, Jm] = size(R.x_u);
-  [Jrg, Irg] = meshgrid(1:Jm, 1:Im);
-  R.Irg_u = Irg - 3;                                % ROMS indices:
-  R.Jrg_u = Jrg - 4;                                % -2:L+2, -3:M+2
-
+  error('REFINE_COORDINATES: unable to find coordinates at U-points') 
 end
 
 % V-points coordinates.
@@ -691,84 +669,72 @@ end
 R.xi_v  = XvF;
 R.eta_v = YvF;
 
-if (spherical),
-  if (~isempty(G(dg).x_v) && ~isempty(G(dg).y_v)),
+if ((~isempty(G(dg).x_v)   && ~isempty(G(dg).y_v))     ||               ...
+    (~isempty(G(dg).lon_v) && ~isempty(G(dg).lat_v)))
 
-    FCv = TriScatteredInterp(XvC(:), YvC(:),                            ...
-                             G(dg).x_v(:), method);
+  if (~isempty(G(dg).x_v) && ~isempty(G(dg).y_v))
+    if (UseGriddedInterpolant)
+      FCv = griddedInterpolant(XvC, YvC, G(dg).x_v, method);
 
-                               R.x_v = FCv(XvF, YvF);
-    FCv.V = G(dg).y_v(:);      R.y_v = FCv(XvF, YvF); 
-
-    FSv = TriScatteredInterp(G(dg).x_v(:), G(dg).y_v(:),                ...
-                             G(dg).lon_v(:), method);
-
-                               R.lon_v = FSv(R.x_v, R.y_v);
-    FSv.V = G(dg).lat_v(:);    R.lat_v = FSv(R.x_v, R.y_v);
-  
-  elseif (~isempty(G(dg).lon_v) && ~isempty(G(dg).lat_v)),
-
-    FSv = TriScatteredInterp(XvC(:), YvC(:),                            ...
-                             G(dg).lon_v(:), method);
-
-                               R.lon_v = FSv(XvF, YvF);
-    FSv.V = G(dg).lat_v(:);    R.lat_v = FSv(XvF, YvF);
-
-    FCv = TriScatteredInterp(G(dg).lon_v(:), G(dg).lat_v(:),            ...
-                             G(dg).x_v(:), method);
-
-                               R.x_v = FCv(R.lon_v, R.lat_v);
-    FCv.V = G(dg).y_v(:);      R.y_v = FCv(R.lon_v, R.lat_v);  
+                                      R.x_v = FCv(XvF, YvF);
+      FCv.Values = G(dg).y_v;         R.y_v = FCv(XvF, YvF); 
+    else
+      R.x_v = interp2(XvC', YvC', G(dg).x_v', XvF, YvF, method);
+      R.y_v = interp2(XvC', YvC', G(dg).y_v', XvF, YvF, method);
+    end
+    [Im, Jm] = size(R.x_v);
   end
 
-  [Im, Jm] = size(R.lon_v);
+  if (spherical && ~isempty(G(dg).lon_v) && ~isempty(G(dg).lat_v))
+    if (UseGriddedInterpolant)
+      FSv = griddedInterpolant(XvC, YvC, G(dg).lon_v, method);
+  
+                                      R.lon_v = FSv(XvF, YvF);
+      FSv.Values = G(dg).lat_v;       R.lat_v = FSv(XvF, YvF);
+    else
+      R.lon_v = interp2(XvC', YvC', G(dg).lon_v', XvF, YvF, method);
+      R.lat_v = interp2(XvC', YvC', G(dg).lat_v', XvF, YvF, method);
+    end
+    [Im, Jm] = size(R.lon_v);
+  end
+
   [Jrg, Irg] = meshgrid(1:Jm, 1:Im);
   R.Irg_v = Irg - 4;                                % ROMS indices:
   R.Jrg_v = Jrg - 3;                                % -3:L+2, -2:M+2
+else
+  error('REFINE_COORDINATES: unable to find coordinates at V-points') 
+end
+
+%--------------------------------------------------------------------------
+% Interpolate other grid variables.
+%--------------------------------------------------------------------------
+
+if (spherical)
+  if (~isempty(G(dg).x_rho) && ~isempty(G(dg).y_rho))
+
+    FCr.Values = G(dg).angle(:);    R.angle = FCr(XrF, YrF); 
+    FCr.Values = G(dg).f(:);        R.f     = FCr(XrF, YrF); 
+    FCr.Values = G(dg).h(:);        R.h     = FCr(XrF, YrF); 
+
+  elseif (~isempty(G(dg).lon_rho) && ~isempty(G(dg).lat_rho))
+
+    FSr.Values = G(dg).angle(:);    R.angle = FCr(XrF, YrF); 
+    FSr.Values = G(dg).f(:);        R.f     = FCr(XrF, YrF); 
+    FSr.Values = G(dg).h(:);        R.h     = FCr(XrF, YrF); 
+  
+  end
 
 else
 
-  FCv = TriScatteredInterp(XvC(:), YvC(:),                              ...
-                           G(dg).x_v(:), method);
-
-                               R.x_v = FCv(XvF, YvF);
-  FCv.V = G(dg).y_v(:);        R.y_v = FCv(XvF, YvF); 
-
-  [Im, Jm] = size(R.x_v);
-  [Jrg, Irg] = meshgrid(1:Jm, 1:Im);
-  R.Irg_v = Irg - 4;                                % ROMS indices:
-  R.Jrg_v = Jrg - 3;                                % -3:L+2, -2:M+2
+  FCr.Values = G(dg).angle(:);      R.angle = FCr(XrF, YrF); 
+  FCr.Values = G(dg).f(:);          R.f     = FCr(XrF, YrF); 
+  FCr.Values = G(dg).h(:);          R.h     = FCr(XrF, YrF); 
 
 end
 
-% Interpolate other grid variables.
-
-if (spherical),
-  if (~isempty(G(dg).x_rho) && ~isempty(G(dg).y_rho)),
-
-    FCr.V = G(dg).angle(:);    R.angle = FCr(XrF, YrF); 
-    FCr.V = G(dg).f(:);        R.f     = FCr(XrF, YrF); 
-    FCr.V = G(dg).h(:);        R.h     = FCr(XrF, YrF); 
-
-  elseif (~isempty(G(dg).lon_rho) && ~isempty(G(dg).lat_rho)),
-
-    FSr.V = G(dg).angle(:);    R.angle = FCr(XrF, YrF); 
-    FSr.V = G(dg).f(:);        R.f     = FCr(XrF, YrF); 
-    FSr.V = G(dg).h(:);        R.h     = FCr(XrF, YrF); 
-  
-  end
-
-else
-
-  FCr.V = G(dg).angle(:);      R.angle = FCr(XrF, YrF); 
-  FCr.V = G(dg).f(:);          R.f     = FCr(XrF, YrF); 
-  FCr.V = G(dg).h(:);          R.h     = FCr(XrF, YrF); 
-
-end  
-
 % Set grid metrics.
 
-if (G(dg).uniform),
+if (G(dg).uniform)
 
 % Donor has a uniform grid distribution.
 
@@ -788,7 +754,7 @@ else
 % roundoff.  There is not much that we can do here.  The roundoff
 % is small and of the order 1.0E-16 (eps value).
 
-  if (spherical),
+  if (spherical)
     GreatCircle = true;
   else
     GreatCircle = false;
@@ -809,7 +775,7 @@ end
 
 R.mask_rho = interp2(XrC', YrC', G(dg).mask_rho', XrF, YrF, 'nearest');
 
-if (MaskInterp),
+if (MaskInterp)
   R.mask_psi = interp2(XpC', YpC', G(dg).mask_psi', XpF, YpF, 'nearest');
   R.mask_u   = interp2(XuC', YuC', G(dg).mask_u'  , XuF, YuF, 'nearest');
   R.mask_v   = interp2(XvC', YvC', G(dg).mask_v'  , XvF, YvF, 'nearest');
@@ -831,7 +797,7 @@ IendR = Lp;     IendP = L;     IendU = L;      IendV = Lp;
 JstrR = 1;      JstrP = 1;     JstrU = 1;      JstrV = 1;
 JendR = Mp;     JendP = M;     JendU = Mp;     JendV = M;
 
-if (spherical),
+if (spherical)
   R.lon_psi(IstrP+3:IendP+3,JstrP+3)=G(rg).lon_psi(IstrP:IendP,JstrP);
   R.lon_psi(IstrP+3:IendP+3,JendP+3)=G(rg).lon_psi(IstrP:IendP,JendP);
   R.lon_psi(IstrP+3,JstrP+4:JendP+2)=G(rg).lon_psi(IstrP,JstrP+1:JendP-1);
@@ -1032,7 +998,7 @@ W = C;
 % Western boundary of the donor grid lies on the receiver grid eastern
 % boundary.
 
-if (S.contact(cr).boundary(iwest).okey),
+if (S.contact(cr).boundary(iwest).okay)
   Ioffr = 3;
   Ioffu = 3;
   Ioffv = 3;
@@ -1052,7 +1018,7 @@ if (S.contact(cr).boundary(iwest).okey),
   W(ib).xrg_v   = S.grid(dg).XI_v(Iv);
   W(ib).erg_v   = S.grid(dg).ETA_v(Iv);
   
-  if (spherical),
+  if (spherical)
     W(ib).Xrg_rho = G(dg).lon_rho(Ir);
     W(ib).Yrg_rho = G(dg).lat_rho(Ir);
 
@@ -1091,7 +1057,7 @@ if (S.contact(cr).boundary(iwest).okey),
   W(ib).pm        = G(dg).pm(Ir);
   W(ib).pn        = G(dg).pn(Ir);
 
-  if (G(dg).curvilinear),
+  if (G(dg).curvilinear)
     W(ib).dndx    = G(dg).dndx(Ir);
     W(ib).dmde    = G(dg).dmde(Ir);
   else
@@ -1107,7 +1073,7 @@ end
 % Southern boundary of the donor grid lies on the receiver grid northern
 % boundary.
 
-if (S.contact(cr).boundary(isouth).okey),
+if (S.contact(cr).boundary(isouth).okay)
   Joffr = 3;
   Joffu = 3;
   Joffv = 3;
@@ -1127,7 +1093,7 @@ if (S.contact(cr).boundary(isouth).okey),
   W(ib).xrg_v   = S.grid(dg).XI_v(Jv);
   W(ib).erg_v   = S.grid(dg).ETA_v(Jv);
   
-  if (spherical),
+  if (spherical)
     W(ib).Xrg_rho = G(dg).lon_rho(Jr);
     W(ib).Yrg_rho = G(dg).lat_rho(Jr);
   
@@ -1166,7 +1132,7 @@ if (S.contact(cr).boundary(isouth).okey),
   W(ib).pm        = G(dg).pm(Jr);
   W(ib).pn        = G(dg).pn(Jr);
 
-  if (G(dg).curvilinear),
+  if (G(dg).curvilinear)
     W(ib).dndx    = G(dg).dndx(Jr);
     W(ib).dmde    = G(dg).dmde(Jr);
   else
@@ -1182,7 +1148,7 @@ end
 % Eastern boundary of the donor grid lies on the receiver grid western
 % boundary.
 
-if (S.contact(cr).boundary(ieast).okey),
+if (S.contact(cr).boundary(ieast).okay)
   Ioffr = 4;
   Ioffu = 4;
   Ioffv = 4;
@@ -1202,7 +1168,7 @@ if (S.contact(cr).boundary(ieast).okey),
   W(ib).xrg_v   = S.grid(dg).XI_v(Iv);
   W(ib).erg_v   = S.grid(dg).ETA_v(Iv);
   
-  if (spherical),
+  if (spherical)
     W(ib).Xrg_rho = G(dg).lon_rho(Ir);
     W(ib).Yrg_rho = G(dg).lat_rho(Ir);
   
@@ -1241,7 +1207,7 @@ if (S.contact(cr).boundary(ieast).okey),
   W(ib).pm        = G(dg).pm(Ir);
   W(ib).pn        = G(dg).pn(Ir);
  
-  if (G(dg).curvilinear),
+  if (G(dg).curvilinear)
     W(ib).dndx    = G(dg).dndx(Ir);
     W(ib).dmde    = G(dg).dmde(Ir);
   else
@@ -1257,7 +1223,7 @@ end
 % Northern boundary of the donor grid lies on the receiver grid southern
 % boundary.
 
-if (S.contact(cr).boundary(inorth).okey),
+if (S.contact(cr).boundary(inorth).okay)
   Joffr = 4;
   Joffu = 4;
   Joffv = 4;
@@ -1277,7 +1243,7 @@ if (S.contact(cr).boundary(inorth).okey),
   W(ib).xrg_v   = S.grid(dg).XI_v(Jv);
   W(ib).erg_v   = S.grid(dg).ETA_v(Jv);
 
-  if (spherical),
+  if (spherical)
     W(ib).Xrg_rho = G(dg).lon_rho(Jr);
     W(ib).Yrg_rho = G(dg).lat_rho(Jr);
   
@@ -1317,7 +1283,7 @@ if (S.contact(cr).boundary(inorth).okey),
   W(ib).pn        = G(dg).pn(Jr);
 
   
-  if (G(dg).curvilinear),
+  if (G(dg).curvilinear)
     W(ib).dndx    = G(dg).dndx(Jr);
     W(ib).dmde    = G(dg).dmde(Jr);
   else
@@ -1338,8 +1304,8 @@ end
 %  just need to concatenate all the contact points.
 %--------------------------------------------------------------------------
 
-for ib=1:4,
-  if (S.contact(cr).boundary(ib).okey),
+for ib=1:4
+  if (S.contact(cr).boundary(ib).okay)
     C.xrg_rho  = W(ib).xrg_rho;
     C.erg_rho  = W(ib).erg_rho;
     C.xrg_u    = W(ib).xrg_u;
@@ -1381,7 +1347,7 @@ for ib=1:4,
 
 % Remove land contact points.
 
-    if (Lmask),
+    if (Lmask)
       indr = C.mask_rho < 0.5;
       indu = C.mask_u   < 0.5;
       indv = C.mask_v   < 0.5;
@@ -1507,7 +1473,6 @@ function [C, R] = refinement(cr, dg, rg, Lmask, G, S, MaskInterp)
 Ngrids      = length(G);             % number of nested grids
 Ncontact    = (Ngrids-1)*2;          % number of contact regions
   
-method      = 'natural';
 spherical   = S.spherical;
 Debugging   = true;                  % plot contact points for debugging
 
@@ -1529,12 +1494,18 @@ C = struct('xrg_rho'     , [], 'erg_rho'     , [],                      ...
            'dndx'        , [], 'dmde'        , [],                      ...
            'mask_rho'    , [], 'mask_u'      , [], 'mask_v'      , []);
 
+% Compute mean grid cell area for donor and receiver grids. In refinement
+% the donor and receiver grids have different mean grid cell area.
+
+AreaAvg_dg = mean(mean((1./G(dg).pm) .* (1./G(dg).pn)));
+AreaAvg_rg = mean(mean((1./G(rg).pm) .* (1./G(rg).pn)));
+
 %--------------------------------------------------------------------------
-% If receiver is a refinement grid, determine the contact points from
-% coarser donor grid.
+% If receiver is a refinement grid (smaller cell area), determine the
+% contact points from coarser donor grid (larger cell area).
 %--------------------------------------------------------------------------
 
-if (S.grid(rg).refine_factor > 0),
+if ((S.grid(rg).refine_factor > 0) && (AreaAvg_dg > AreaAvg_rg))
 
 % Extract larger receiver (fine) grid from donor (coarse) grid.
 
@@ -1553,15 +1524,15 @@ if (S.grid(rg).refine_factor > 0),
 % Set receiver grid contact points: perimeter and outside contact region
 % on donor grid.
 
-  if (spherical),
+  if (spherical)
 
 % RHO-contact points.
 
-    [INr,ONr] = inpolygon(R.lon_rho(:), R.lat_rho(:),                   ...
-                          S.grid(rg).perimeter.X_psi,                   ...
-                          S.grid(rg).perimeter.Y_psi);
+    [INr,~] = inpolygon(R.lon_rho(:), R.lat_rho(:),                     ...
+                        S.grid(rg).perimeter.X_psi,                   ...
+                        S.grid(rg).perimeter.Y_psi);
 
-    if (any(~INr)),
+    if (any(~INr))
       C.xrg_rho  = R.xi_rho (~INr);
       C.erg_rho  = R.eta_rho(~INr);
       C.Xrg_rho  = R.lon_rho(~INr);
@@ -1577,7 +1548,7 @@ if (S.grid(rg).refine_factor > 0),
       C.pm       = R.pm(~INr);
       C.pn       = R.pn(~INr);
 
-      if (G(rg).curvilinear),
+      if (G(rg).curvilinear)
         C.dndx   = R.dndx(~INr);
         C.dmde   = R.dmde(~INr);
       else
@@ -1588,7 +1559,7 @@ if (S.grid(rg).refine_factor > 0),
       C.mask_rho = R.mask_rho(~INr);
     end
 
-    if (Debugging),
+    if (Debugging)
       figure;
       plot(C.xrg_rho, C.erg_rho, 'r+',                                  ...
            S.grid(dg).XI_rho(:), S.grid(dg).ETA_rho(:), 'co',           ...
@@ -1610,7 +1581,7 @@ if (S.grid(rg).refine_factor > 0),
 
     INu(ONu) = false;                           % add U-points on perimeter
 
-    if (any(~INu)),
+    if (any(~INu))
       C.xrg_u  = R.xi_u (~INu);
       C.erg_u  = R.eta_u(~INu);
       C.Xrg_u  = R.lon_u(~INu);
@@ -1623,7 +1594,7 @@ if (S.grid(rg).refine_factor > 0),
       C.mask_u = R.mask_u(~INu);
     end
 
-    if (Debugging),
+    if (Debugging)
       figure;
       plot(C.xrg_u, C.erg_u, 'r+',                                      ...
            S.grid(dg).XI_u(:), S.grid(dg).ETA_u(:), 'co',               ...
@@ -1645,7 +1616,7 @@ if (S.grid(rg).refine_factor > 0),
 
     INv(ONv) = false;                           % add V-points on perimeter
     
-    if (any(~INv)),
+    if (any(~INv))
       C.xrg_v  = R.xi_v (~INv);
       C.erg_v  = R.eta_v(~INv);
       C.Xrg_v  = R.lon_v(~INv);
@@ -1658,7 +1629,7 @@ if (S.grid(rg).refine_factor > 0),
       C.mask_v = R.mask_v(~INv);
     end
   
-    if (Debugging),
+    if (Debugging)
       figure;
       plot(C.xrg_v, C.erg_v, 'r+',                                      ...
            S.grid(dg).XI_v(:), S.grid(dg).ETA_v(:), 'co',               ...
@@ -1676,11 +1647,11 @@ if (S.grid(rg).refine_factor > 0),
 
 % RHO-contact points.
 
-    [INr,ONr] = inpolygon(R.x_rho(:), R.y_rho(:),                       ...
-                          S.grid(rg).perimeter.X_psi,                   ...
-                          S.grid(rg).perimeter.Y_psi);
+    [INr,~] = inpolygon(R.x_rho(:), R.y_rho(:),                         ...
+                        S.grid(rg).perimeter.X_psi,                     ...
+                        S.grid(rg).perimeter.Y_psi);
 
-    if (any(~INr)),
+    if (any(~INr))
       C.xrg_rho  = R.xi_rho (~INr);
       C.erg_rho  = R.eta_rho(~INr);
       C.Xrg_rho  = R.x_rho  (~INr);
@@ -1696,7 +1667,7 @@ if (S.grid(rg).refine_factor > 0),
       C.pm       = R.pm(~INr);
       C.pn       = R.pn(~INr);
 
-      if (G(rg).curvilinear),
+      if (G(rg).curvilinear)
         C.dndx   = R.dndx(~INr);
         C.dmde   = R.dmde(~INr);
       else
@@ -1707,7 +1678,7 @@ if (S.grid(rg).refine_factor > 0),
       C.mask_rho = R.mask_rho(~INr);
     end
 
-    if (Debugging),
+    if (Debugging)
       figure;
       plot(C.xrg_rho, C.erg_rho, 'r+',                                  ...
            S.grid(dg).XI_rho(:), S.grid(dg).ETA_rho(:), 'co',           ...
@@ -1729,7 +1700,7 @@ if (S.grid(rg).refine_factor > 0),
 
     INu(ONu) = false;                           % add U-points on perimeter
    
-    if (any(~INu)),
+    if (any(~INu))
       C.xrg_u  = R.xi_u (~INu);
       C.erg_u  = R.eta_u(~INu);
       C.Xrg_u  = R.x_u  (~INu);
@@ -1742,7 +1713,7 @@ if (S.grid(rg).refine_factor > 0),
       C.mask_u = R.mask_u(~INu);
     end
 
-    if (Debugging),
+    if (Debugging)
       figure;
       plot(C.xrg_u, C.erg_u, 'r+',                                      ...
            S.grid(dg).XI_u(:), S.grid(dg).ETA_u(:), 'co',               ...
@@ -1764,7 +1735,7 @@ if (S.grid(rg).refine_factor > 0),
 
     INv(ONv) = false;                           % add V-points on perimeter
 
-    if (any(~INv)),
+    if (any(~INv))
       C.xrg_v  = R.xi_v (~INv);
       C.erg_v  = R.eta_v(~INv);
       C.Xrg_v  = R.x_v  (~INv);
@@ -1777,7 +1748,7 @@ if (S.grid(rg).refine_factor > 0),
       C.mask_v = R.mask_v(~INv);
     end
 
-    if (Debugging),
+    if (Debugging)
       figure;
       plot(C.xrg_v, C.erg_v, 'r+',                                      ...
            S.grid(dg).XI_v(:), S.grid(dg).ETA_v(:), 'co',               ...
@@ -1795,7 +1766,7 @@ if (S.grid(rg).refine_factor > 0),
 
 % Remove point on land mask.
 
-  if (Lmask),
+  if (Lmask)
     indr = C.mask_rho < 0.5;
     indu = C.mask_u   < 0.5;
     indv = C.mask_v   < 0.5;
@@ -1841,13 +1812,13 @@ if (S.grid(rg).refine_factor > 0),
 end
 
 %--------------------------------------------------------------------------
-% Otherwise if the donor is the finer grid and receiver the coarser grid,
-% determine coarse grid contact point inside the finer grid.  This
-% information will be used for two-way nesting for the fine to coarse
-% processing.
+% Otherwise if the donor is the finer grid (smaller cell area) and receiver
+% the coarser grid (larger cell area), determine coarse grid contact point
+% inside the finer grid.  This information will be used for two-way nesting
+% for the fine to coarse processing.
 %--------------------------------------------------------------------------
 
-if (dg > rg || S.grid(dg).refine_factor > 0),
+if (dg > rg || AreaAvg_rg > AreaAvg_dg)
 
 % Set coaser grid (Io,Jo) origin coordinates (left-bottom corner) at
 % PSI-points used to extract finer grid.  Set finer grid center indices
@@ -1862,31 +1833,31 @@ if (dg > rg || S.grid(dg).refine_factor > 0),
   half   = floor((delta-1)/2);
   offset = double(half+1);
 
-  for my_cr = 1:Ncontact,
+  for my_cr = 1:Ncontact
     if (S.contact(my_cr).donor_grid    == rg &&                         ...
         S.contact(my_cr).receiver_grid == dg &&                         ...
-        S.contact(my_cr).corners.okey),
+        S.contact(my_cr).corners.okay)
       Io = min(S.contact(my_cr).corners.Idg);
       Jo = min(S.contact(my_cr).corners.Jdg);
     end
   end
 
-  if (isempty(Io) || isempty(Jo)),
+  if (isempty(Io) || isempty(Jo))
     error(' Unable to determine coaser origin coordinates (Io,Jo)');
   end
 
 % Set receiver (coarse) grid contact points inside perimeter of donor
 % (fine) grid. This will be used in the fine two coarse two-way nesting.
 
-  if (spherical),
+  if (spherical)
 
 % RHO-contact points.
 
-    [INr,ONr] = inpolygon(G(rg).lon_rho(:), G(rg).lat_rho(:),           ...
-                          S.grid(dg).perimeter.X_psi,                   ...
-                          S.grid(dg).perimeter.Y_psi);
+    [INr,~] = inpolygon(G(rg).lon_rho(:), G(rg).lat_rho(:),             ...
+                        S.grid(dg).perimeter.X_psi,                     ...
+                        S.grid(dg).perimeter.Y_psi);
 
-    if (any(INr)),
+    if (any(INr))
       C.xrg_rho  = S.grid(rg).XI_rho(INr);
       C.erg_rho  = S.grid(rg).ETA_rho(INr);
       C.Xrg_rho  = G(rg).lon_rho(INr);
@@ -1902,7 +1873,7 @@ if (dg > rg || S.grid(dg).refine_factor > 0),
       C.pm       = G(rg).pm(INr);
       C.pn       = G(rg).pn(INr);
 
-      if (G(rg).curvilinear),
+      if (G(rg).curvilinear)
         C.dndx   = G(rg).dndx(INr);
         C.dmde   = G(rg).dmde(INr);
       else
@@ -1913,7 +1884,7 @@ if (dg > rg || S.grid(dg).refine_factor > 0),
       C.mask_rho = G(rg).mask_rho(INr);
     end
 
-    if (Debugging),
+    if (Debugging)
       figure;
       plot(S.grid(dg).XI_psi,  S.grid(dg).ETA_psi,  'k:',               ...
            S.grid(dg).XI_psi', S.grid(dg).ETA_psi', 'k:',               ...
@@ -1940,7 +1911,7 @@ if (dg > rg || S.grid(dg).refine_factor > 0),
 
     INu(ONu) = false;                   % remove U-points on perimeter
 
-    if (any(INu)),
+    if (any(INu))
       C.xrg_u  = S.grid(rg).XI_u(INu);
       C.erg_u  = S.grid(rg).ETA_u(INu);
       C.Xrg_u  = G(rg).lon_u(INu);
@@ -1953,7 +1924,7 @@ if (dg > rg || S.grid(dg).refine_factor > 0),
       C.mask_u = G(rg).mask_u(INu);
     end
 
-    if (Debugging),
+    if (Debugging)
       figure;
       plot(S.grid(dg).XI_v,  S.grid(dg).ETA_v,  'k:',                   ...
            S.grid(dg).XI_v', S.grid(dg).ETA_v', 'k:',                   ...
@@ -1983,7 +1954,7 @@ if (dg > rg || S.grid(dg).refine_factor > 0),
 
     INv(ONv) = false;                   % remove V-points on perimeter
 
-    if (any(INv)),
+    if (any(INv))
       C.xrg_v  = S.grid(rg).XI_v(INv);
       C.erg_v  = S.grid(rg).ETA_v(INv);
       C.Xrg_v  = G(rg).lon_v(INv);
@@ -1996,7 +1967,7 @@ if (dg > rg || S.grid(dg).refine_factor > 0),
       C.mask_v = G(rg).mask_v(INv);
     end
 
-    if (Debugging),
+    if (Debugging)
       figure;
       plot(S.grid(dg).XI_u,  S.grid(dg).ETA_u,  'k:',                   ...
            S.grid(dg).XI_u', S.grid(dg).ETA_u', 'k:',                   ...
@@ -2022,11 +1993,11 @@ if (dg > rg || S.grid(dg).refine_factor > 0),
 
 % RHO-contact points.
 
-    [INr,ONr] = inpolygon(G(rg).x_rho(:), G(rg).y_rho(:),               ...
-                          S.grid(dg).perimeter.X_psi,                   ...
-                          S.grid(dg).perimeter.Y_psi);
+    [INr,~] = inpolygon(G(rg).x_rho(:), G(rg).y_rho(:),                 ...
+                        S.grid(dg).perimeter.X_psi,                     ...
+                        S.grid(dg).perimeter.Y_psi);
 
-    if (any(INr)),
+    if (any(INr))
       C.xrg_rho  = S.grid(rg).XI_rho(INr);
       C.erg_rho  = S.grid(rg).ETA_rho(INr);
       C.Xrg_rho  = G(rg).x_rho(INr);
@@ -2042,7 +2013,7 @@ if (dg > rg || S.grid(dg).refine_factor > 0),
       C.pm       = G(rg).pm(INr);
       C.pn       = G(rg).pn(INr);
 
-      if (G(rg).curvilinear),
+      if (G(rg).curvilinear)
         C.dndx   = G(rg).dndx(INr);
         C.dmde   = G(rg).dmde(INr);
       else
@@ -2053,7 +2024,7 @@ if (dg > rg || S.grid(dg).refine_factor > 0),
       C.mask_rho = G(rg).mask_rho(INr);
     end
 
-    if (Debugging),
+    if (Debugging)
       figure;
       plot(S.grid(dg).XI_psi,  S.grid(dg).ETA_psi,  'k:',               ...
            S.grid(dg).XI_psi', S.grid(dg).ETA_psi', 'k:',               ...
@@ -2080,7 +2051,7 @@ if (dg > rg || S.grid(dg).refine_factor > 0),
 
     INu(ONu) = false;                   % remove U-points on perimeter
 
-    if (any(INu)),
+    if (any(INu))
       C.xrg_u  = S.grid(rg).XI_u(INu);
       C.erg_u  = S.grid(rg).ETA_u(INu);
       C.Xrg_u  = G(rg).x_u(INu);
@@ -2093,7 +2064,7 @@ if (dg > rg || S.grid(dg).refine_factor > 0),
       C.mask_u = G(rg).mask_u(INu);
     end
 
-    if (Debugging),
+    if (Debugging)
       figure;
       plot(S.grid(dg).XI_v,  S.grid(dg).ETA_v,  'k:',                   ...
            S.grid(dg).XI_v', S.grid(dg).ETA_v', 'k:',                   ...
@@ -2123,7 +2094,7 @@ if (dg > rg || S.grid(dg).refine_factor > 0),
 
     INv(ONv) = false;                   % remove V-points on perimeter
 
-    if (any(INv)),
+    if (any(INv))
       C.xrg_v  = S.grid(rg).XI_v(INv);
       C.erg_v  = S.grid(rg).ETA_v(INv);
       C.Xrg_v  = G(rg).x_v(INv);
@@ -2136,7 +2107,7 @@ if (dg > rg || S.grid(dg).refine_factor > 0),
       C.mask_v = G(rg).mask_v(INv);
     end
     
-    if (Debugging),
+    if (Debugging)
       figure;
       plot(S.grid(dg).XI_u,  S.grid(dg).ETA_u,  'k:',                   ...
            S.grid(dg).XI_u', S.grid(dg).ETA_u', 'k:',                   ...
@@ -2170,7 +2141,7 @@ if (dg > rg || S.grid(dg).refine_factor > 0),
 
   R.x_rho   = [];
   R.y_rho   = [];
-  if (spherical),
+  if (spherical)
     R.lon_rho = [];
     R.lat_rho = [];
   end
@@ -2183,7 +2154,7 @@ if (dg > rg || S.grid(dg).refine_factor > 0),
 
   R.x_psi   = [];
   R.y_psi   = [];
-  if (spherical),
+  if (spherical)
     R.lon_psi = [];
     R.lat_psi = [];
   end
@@ -2196,7 +2167,7 @@ if (dg > rg || S.grid(dg).refine_factor > 0),
 
   R.x_u   = [];
   R.y_u   = [];
-  if (spherical),
+  if (spherical)
     R.lon_u = [];
     R.lat_u = [];
   end
@@ -2209,7 +2180,7 @@ if (dg > rg || S.grid(dg).refine_factor > 0),
   
   R.x_v   = [];
   R.y_v   = [];
-  if (spherical),
+  if (spherical)
     R.lon_v = [];
     R.lat_v = [];
   end
@@ -2217,9 +2188,9 @@ if (dg > rg || S.grid(dg).refine_factor > 0),
   R.Irg_v = [];
   R.Jrg_v = [];
 
-  R.angle    = [];
-  R.f        = [];
   R.h        = [];
+  R.f        = [];
+  R.angle    = [];
   R.pm       = [];
   R.pn       = [];
   R.dndx     = [];
@@ -2270,19 +2241,17 @@ UsePolygon = true;                   %  Use "inpolygon" fiunction
 % Determine which contact point lay on receiver grid boundary.
 %--------------------------------------------------------------------------
 
-for cr=1:S.Ncontact,
+for cr=1:S.Ncontact
 
   rg = S.contact(cr).receiver_grid;
-  Lm = S.grid(rg).L-1;
-  Mm = S.grid(rg).M-1;
   
 % Contact points on RHO-boundary.
 
   if (UsePolygon)
-    [IN,ON] = inpolygon(S.contact(cr).point.Xrg_rho,                    ...
-                        S.contact(cr).point.Yrg_rho,                    ...
-                        S.grid(rg).perimeter.X_psi,                     ...
-                        S.grid(rg).perimeter.Y_psi);
+    [~,ON] = inpolygon(S.contact(cr).point.Xrg_rho,                     ...
+                       S.contact(cr).point.Yrg_rho,                     ...
+                       S.grid(rg).perimeter.X_psi,                      ...
+                       S.grid(rg).perimeter.Y_psi);
   else
     NC = length(S.contact(cr).point.Xrg_rho);
 
@@ -2291,13 +2260,13 @@ for cr=1:S.Ncontact,
     Xper = S.grid(rg).perimeter.X_psi;
     Yper = S.grid(rg).perimeter.Y_psi;
   
-    for nc=1:NC,
+    for nc=1:NC
       Xrg_rho = S.contact(cr).point.Xrg_rho(nc);
       Yrg_rho = S.contact(cr).point.Yrg_rho(nc);
     
       ind = find(abs(Xper-Xrg_rho) < 4*eps &                            ...
                  abs(Yper-Yrg_rho) < 4*eps);
-      if (~isempty(ind)),
+      if (~isempty(ind))
         ON(nc) = true;
       end
     end
@@ -2308,10 +2277,10 @@ for cr=1:S.Ncontact,
 % Contact points on U-boundary.  
 
   if (UsePolygon)
-    [IN,ON] = inpolygon(S.contact(cr).point.Xrg_u,                      ...
-                        S.contact(cr).point.Yrg_u,                      ...
-                        S.grid(rg).perimeter.X_uv,                      ...
-                        S.grid(rg).perimeter.Y_uv);
+    [~,ON] = inpolygon(S.contact(cr).point.Xrg_u,                       ...
+                       S.contact(cr).point.Yrg_u,                       ...
+                       S.grid(rg).perimeter.X_uv,                       ...
+                       S.grid(rg).perimeter.Y_uv);
   else
     NC = length(S.contact(cr).point.Xrg_u);
 
@@ -2320,13 +2289,13 @@ for cr=1:S.Ncontact,
     Xper = S.grid(rg).perimeter.X_uv;
     Yper = S.grid(rg).perimeter.Y_uv;
   
-    for nc=1:NC,
+    for nc=1:NC
       Xrg_u = S.contact(cr).point.Xrg_u(nc);
       Yrg_u = S.contact(cr).point.Yrg_u(nc);
     
       ind = find(abs(Xper-Xrg_u) < 4*eps &                              ...
                  abs(Yper-Yrg_u) < 4*eps);
-      if (~isempty(ind)),
+      if (~isempty(ind))
         ON(nc) = true;
       end
     end
@@ -2337,10 +2306,10 @@ for cr=1:S.Ncontact,
 % Contact points on V-boundary.
 
   if (UsePolygon)
-    [IN,ON] = inpolygon(S.contact(cr).point.Xrg_v,                      ...
-                        S.contact(cr).point.Yrg_v,                      ...
-                        S.grid(rg).perimeter.X_uv,                      ...
-                        S.grid(rg).perimeter.Y_uv);
+    [~,ON] = inpolygon(S.contact(cr).point.Xrg_v,                       ...
+                       S.contact(cr).point.Yrg_v,                       ...
+                       S.grid(rg).perimeter.X_uv,                       ...
+                       S.grid(rg).perimeter.Y_uv);
   else
     NC = length(S.contact(cr).point.Xrg_v);
 
@@ -2349,13 +2318,13 @@ for cr=1:S.Ncontact,
     Xper = S.grid(rg).perimeter.X_uv;
     Yper = S.grid(rg).perimeter.Y_uv;
   
-    for nc=1:NC,
+    for nc=1:NC
       Xrg_v = S.contact(cr).point.Xrg_v(nc);
       Yrg_v = S.contact(cr).point.Yrg_v(nc);
     
       ind = find(abs(Xper-Xrg_v) < 4*eps &                              ...
                  abs(Yper-Yrg_v) < 4*eps);
-      if (~isempty(ind)),
+      if (~isempty(ind))
         ON(nc) = true;
       end
     end
@@ -2369,7 +2338,7 @@ return
 
 %--------------------------------------------------------------------------
 
-function S = Hweights(G, Sinp)
+function S = Hweights(G, Sinp, ImposeMask)
 
 %
 % S = Hweights(G, Sinp)
@@ -2384,6 +2353,8 @@ function S = Hweights(G, Sinp)
 %
 %    Sinp       Nested grids information structure (struct array)
 %
+%    ImposeMask Switch to scale weights with the land/sea mask.
+%
 % On Output:
 %
 %    S          Sinp structure plus horizontal interpolation weights
@@ -2392,10 +2363,13 @@ function S = Hweights(G, Sinp)
 % This function add the following fields to the S structure for each
 % contact region, cr:
 %
-%    S.weights(cr).H_rho(:,4)              - Contact points weights (H) to
-%    S.weights(cr).H_u  (:,4)                horizontally interpolate
-%    S.weights(cr).H_v  (:,4)                reciever data from donor grid
+%    S.Lweights(cr).H_rho(4,:)            - Contact points linear weights
+%    S.Lweights(cr).H_u  (4,:)              (H) to horizontally interpolate
+%    S.Lweights(cr).H_v  (4,:)              reciever data from donor grid
 %     
+%    S.Qweights(cr).H_rho(9,:)            - Contact points quadratic weights
+%    S.Qweights(cr).H_u  (9,:)              (H) to horizontally interpolate
+%    S.Qweights(cr).H_v  (9,:)              reciever data from donor grid
 
 % Initialize output structure with input structure.
   
@@ -2409,10 +2383,12 @@ spherical = S.spherical;
 Ldebug = true;
 
 %--------------------------------------------------------------------------
-% Set horizontal interpolation weights.
+% Set horizontal interpolation weights. All the indices below are computed
+% in terms of the quadratic conservative interpolation (indx1,...,indx9)
+% index locations.
 %--------------------------------------------------------------------------
 
-for cr=1:Ncontact,
+for cr=1:Ncontact
 
   dg = S.contact(cr).donor_grid;
   rg = S.contact(cr).receiver_grid;
@@ -2420,230 +2396,267 @@ for cr=1:Ncontact,
 % RHO-contact points.  Recall that we need to shift I and J by one since
 % Matlat does not support zero-indices.
 
-  if (S.contact(cr).refinement && (dg > rg)),
+  if (S.contact(cr).refinement && (dg > rg))
     Hzero = zeros(size(S.contact(cr).point.Irg_rho));
-    S.weights(cr).H_rho(1,:) = Hzero;
-    S.weights(cr).H_rho(2,:) = Hzero;
-    S.weights(cr).H_rho(3,:) = Hzero;
-    S.weights(cr).H_rho(4,:) = Hzero;
+
+    S.Lweights(cr).H_rho(1,:) = Hzero;
+    S.Lweights(cr).H_rho(2,:) = Hzero;
+    S.Lweights(cr).H_rho(3,:) = Hzero;
+    S.Lweights(cr).H_rho(4,:) = Hzero;
+
+    S.Qweights(cr).H_rho(1,:) = Hzero;
+    S.Qweights(cr).H_rho(2,:) = Hzero;
+    S.Qweights(cr).H_rho(3,:) = Hzero;
+    S.Qweights(cr).H_rho(4,:) = Hzero;
+    S.Qweights(cr).H_rho(5,:) = Hzero;
+    S.Qweights(cr).H_rho(6,:) = Hzero;
+    S.Qweights(cr).H_rho(7,:) = Hzero;
+    S.Qweights(cr).H_rho(8,:) = Hzero;
+    S.Qweights(cr).H_rho(9,:) = Hzero;
+    
     Rcompute = false;
   else
     [Ir,Jr] = size(S.grid(dg).I_rho);
-    RindexO = sub2ind([Ir, Jr],                                         ...
-                      S.contact(cr).point.Idg_rho+1,                    ...
-                      S.contact(cr).point.Jdg_rho+1);        % left-bottom
-    RindexR = sub2ind([Ir, Jr],                                         ...
-                      min(Ir, S.contact(cr).point.Idg_rho+2),           ...
-                      S.contact(cr).point.Jdg_rho+1);        % right_bottom
-    RindexT = sub2ind([Ir, Jr],                                         ...
-                      S.contact(cr).point.Idg_rho+1,                    ...
-                      min(Jr,S.contact(cr).point.Jdg_rho+2));% left-top
+
+    Idg   = S.contact(cr).point.Idg_rho+1;                % Idg
+    Idgm1 = max(1, min(Ir, Idg-1));                       % Idg-1
+    Idgp1 = min(Ir, Idg+1);                               % Idg+1
+    
+    Jdg   = S.contact(cr).point.Jdg_rho+1;                % Jdg
+    Jdgm1 = max(1, min(Jr, Jdg-1));                       % Jdg-1
+    Jdgp1 = min(Jr, Jdg+1);                               % Jdg+1
+
+    Rindx1 = sub2ind([Ir,Jr], Idgm1, Jdgm1);              % (Idg-1, Jdg-1)
+    Rindx2 = sub2ind([Ir,Jr], Idg  , Jdgm1);              % (Idg  , Jdg-1)
+    Rindx3 = sub2ind([Ir,Jr], Idgp1, Jdgm1);              % (Idg+1, Jdg-1)
+    Rindx4 = sub2ind([Ir,Jr], Idgm1, Jdg  );              % (Idg-1, Jdg  )
+    Rindx5 = sub2ind([Ir,Jr], Idg  , Jdg  );              % (Idg  , Jdg  )
+    Rindx6 = sub2ind([Ir,Jr], Idgp1, Jdg  );              % (Idg+1, Jdg  )
+    Rindx7 = sub2ind([Ir,Jr], Idgm1, Jdgp1);              % (Idg-1, Jdg+1)
+    Rindx8 = sub2ind([Ir,Jr], Idg  , Jdgp1);              % (Idg  , Jdg+1)
+    Rindx9 = sub2ind([Ir,Jr], Idgp1, Jdgp1);              % (Idg+1, Jdg+1)
+
     Rcompute = true;
   end
-  if (Rcompute),
+  if (Rcompute)
     if (S.contact(cr).refinement)
-      pr = (S.contact(cr).point.xrg_rho - S.grid(dg).XI_rho(RindexO))./ ...
-           (S.grid(dg).XI_rho(RindexR)  - S.grid(dg).XI_rho(RindexO));
-      qr = (S.contact(cr).point.erg_rho - S.grid(dg).ETA_rho(RindexO))./...
-           (S.grid(dg).ETA_rho(RindexT) - S.grid(dg).ETA_rho(RindexO));
+      pr = (S.contact(cr).point.xrg_rho - S.grid(dg).XI_rho(Rindx5))./  ...
+           (S.grid(dg).XI_rho(Rindx6)   - S.grid(dg).XI_rho(Rindx5));
+      qr = (S.contact(cr).point.erg_rho - S.grid(dg).ETA_rho(Rindx5))./ ...
+           (S.grid(dg).ETA_rho(Rindx8)  - S.grid(dg).ETA_rho(Rindx5));
     else
-      if (spherical),
-        pr = (S.contact(cr).point.Xrg_rho - G(dg).lon_rho(RindexO)) ./  ...
-             (G(dg).lon_rho(RindexR) - G(dg).lon_rho(RindexO));
-        qr = (S.contact(cr).point.Yrg_rho - G(dg).lat_rho(RindexO)) ./  ...
-             (G(dg).lat_rho(RindexT) - G(dg).lat_rho(RindexO));
+      if (spherical)
+        pr = (S.contact(cr).point.Xrg_rho - G(dg).lon_rho(Rindx5)) ./   ...
+             (G(dg).lon_rho(Rindx6) - G(dg).lon_rho(Rindx5));
+        qr = (S.contact(cr).point.Yrg_rho - G(dg).lat_rho(Rindx5)) ./   ...
+             (G(dg).lat_rho(Rindx8) - G(dg).lat_rho(Rindx5));
       else
-        pr = (S.contact(cr).point.Xrg_rho - G(dg).x_rho(RindexO)) ./    ...
-             (G(dg).x_rho(RindexR) - G(dg).x_rho(RindexO));
-        qr = (S.contact(cr).point.Yrg_rho - G(dg).y_rho(RindexO)) ./    ...
-             (G(dg).y_rho(RindexT) - G(dg).y_rho(RindexO));
+        pr = (S.contact(cr).point.Xrg_rho - G(dg).x_rho(Rindx5)) ./     ...
+             (G(dg).x_rho(Rindx6) - G(dg).x_rho(Rindx5));
+        qr = (S.contact(cr).point.Yrg_rho - G(dg).y_rho(Rindx5)) ./     ...
+             (G(dg).y_rho(Rindx8) - G(dg).y_rho(Rindx5));
       end
     end
 
-    if (any(isnan(pr))),      % If any of the factors are NaN,
-      pr(isnan(pr)) = 0;      % it imply that we are dividing
-    end                       % by zero. Therefore, this is a
-    if (any(isnan(qr))),      % coincident point since there
-      qr(isnan(qr)) = 0;      % are not values at either I+1
-    end                       % or J+1.
+    S.Lweights(cr).H_rho = linear_weights(pr, qr,                       ...
+                                          Rindx5, Rindx6,               ...
+                                          Rindx9, Rindx8,               ...
+                                          ImposeMask, G(dg).mask_rho);
 
-    S.weights(cr).H_rho(1,:) = (1 - pr) .* (1 - qr);
-    S.weights(cr).H_rho(2,:) = pr .* (1 - qr);
-    S.weights(cr).H_rho(3,:) = pr .* qr;
-    S.weights(cr).H_rho(4,:) = (1 - pr) .* qr;
-  
-    indR = find(abs(S.weights(cr).H_rho) < 100*eps);
-    if (~isempty(indR)),                            % impose positive zero
-      S.weights(cr).H_rho(indR) = 0;
-    end
+    S.Qweights(cr).H_rho = quadratic_weights(1-pr, qr,                  ...
+                                             Rindx1, Rindx2, Rindx3,    ...
+                                             Rindx4, Rindx5, Rindx6,    ...
+                                             Rindx7, Rindx8, Rindx9,    ...
+                                             S.grid(rg).refine_factor,  ...
+                                             ImposeMask, G(dg).mask_rho);
 
-    indR = find(abs(S.weights(cr).H_rho-1) < 100*eps);
-    if (~isempty(indR)),                             % impose exact one
-      S.weights(cr).H_rho(indR) = 1;
-    end
   end
 
 % U-contact points.  Recall that we need to shift I by one since
 % Matlat does not support zero-indices.
 
-  if (S.contact(cr).refinement && (dg > rg)),
+  if (S.contact(cr).refinement && (dg > rg))
     Hzero = zeros(size(S.contact(cr).point.Irg_u));
-    S.weights(cr).H_u(1,:) = Hzero;
-    S.weights(cr).H_u(2,:) = Hzero;
-    S.weights(cr).H_u(3,:) = Hzero;
-    S.weights(cr).H_u(4,:) = Hzero;
+
+    S.Lweights(cr).H_u(1,:) = Hzero;
+    S.Lweights(cr).H_u(2,:) = Hzero;
+    S.Lweights(cr).H_u(3,:) = Hzero;
+    S.Lweights(cr).H_u(4,:) = Hzero;
+
+    S.Qweights(cr).H_u(1,:) = Hzero;
+    S.Qweights(cr).H_u(2,:) = Hzero;
+    S.Qweights(cr).H_u(3,:) = Hzero;
+    S.Qweights(cr).H_u(4,:) = Hzero;
+    S.Qweights(cr).H_u(5,:) = Hzero;
+    S.Qweights(cr).H_u(6,:) = Hzero;
+    S.Qweights(cr).H_u(7,:) = Hzero;
+    S.Qweights(cr).H_u(8,:) = Hzero;
+    S.Qweights(cr).H_u(9,:) = Hzero;
+    
     Ucompute = false;
   else
     [Iu,Ju] = size(S.grid(dg).I_u);
-    UindexO = sub2ind([Iu, Ju],                                         ...
-                      S.contact(cr).point.Idg_u  ,                      ...
-                      min(Ju, S.contact(cr).point.Jdg_u+1)); % left-bottom
-    UindexR = sub2ind([Iu, Ju],                                         ...
-                      min(Iu, S.contact(cr).point.Idg_u+1),             ...
-                      min(Ju, S.contact(cr).point.Jdg_u+1)); % right-bottom
-    UindexT = sub2ind([Iu, Ju],                                         ...
-                      S.contact(cr).point.Idg_u  ,                      ...
-                      min(Ju, S.contact(cr).point.Jdg_u+2)); % left-top
+
+    Idg   = S.contact(cr).point.Idg_u;                    % Idg
+    Idgm1 = max(1, min(Iu, Idg-1));                       % Idg-1
+    Idgp1 = min(Iu, Idg+1);                               % Idg+1
+
+    Jdg   = S.contact(cr).point.Jdg_u+1;                  % Jdg
+    Jdgm1 = max(1, min(Ju, Jdg-1));                       % Jdg-1
+    Jdgp1 = min(Ju, Jdg+1);                               % Jdg+1
+
+    Uindx1 = sub2ind([Iu,Ju], Idgm1, Jdgm1);              % (Idg-1, Jdg-1)
+    Uindx2 = sub2ind([Iu,Ju], Idg  , Jdgm1);              % (Idg  , Jdg-1)
+    Uindx3 = sub2ind([Iu,Ju], Idgp1, Jdgm1);              % (Idg+1, Jdg-1)
+    Uindx4 = sub2ind([Iu,Ju], Idgm1, Jdg  );              % (Idg-1, Jdg  )
+    Uindx5 = sub2ind([Iu,Ju], Idg  , Jdg  );              % (Idg  , Jdg  )
+    Uindx6 = sub2ind([Iu,Ju], Idgp1, Jdg  );              % (Idg+1, Jdg  )
+    Uindx7 = sub2ind([Iu,Ju], Idgm1, Jdgp1);              % (Idg-1, Jdg+1)
+    Uindx8 = sub2ind([Iu,Ju], Idg  , Jdgp1);              % (Idg  , Jdg+1)
+    Uindx9 = sub2ind([Iu,Ju], Idgp1, Jdgp1);              % (Idg+1, Jdg+1)
+
     Ucompute = true;
   end
   if (Ucompute)    
     if (S.contact(cr).refinement)
-      pu = (S.contact(cr).point.xrg_u - S.grid(dg).XI_u(UindexO))./     ...
-           (S.grid(dg).XI_u(UindexR)  - S.grid(dg).XI_u(UindexO));
-      qu = (S.contact(cr).point.erg_u - S.grid(dg).ETA_u(UindexO))./    ...
-           (S.grid(dg).ETA_u(UindexT) - S.grid(dg).ETA_u(UindexO));
+      pu = (S.contact(cr).point.xrg_u - S.grid(dg).XI_u(Uindx5))./      ...
+           (S.grid(dg).XI_u(Uindx6)  - S.grid(dg).XI_u(Uindx5));
+      qu = (S.contact(cr).point.erg_u - S.grid(dg).ETA_u(Uindx5))./     ...
+           (S.grid(dg).ETA_u(Uindx8) - S.grid(dg).ETA_u(Uindx5));
     else
-      if (spherical),
-        pu = (S.contact(cr).point.Xrg_u - G(dg).lon_u(UindexO)) ./      ...
-             (G(dg).lon_u(UindexR) - G(dg).lon_u(UindexO));
-        qu = (S.contact(cr).point.Yrg_u - G(dg).lat_u(UindexO)) ./      ...
-             (G(dg).lat_u(UindexT) - G(dg).lat_u(UindexO)) ;
+      if (spherical)
+        pu = (S.contact(cr).point.Xrg_u - G(dg).lon_u(Uindx5)) ./       ...
+             (G(dg).lon_u(Uindx6) - G(dg).lon_u(Uindx5));
+        qu = (S.contact(cr).point.Yrg_u - G(dg).lat_u(Uindx5)) ./       ...
+             (G(dg).lat_u(Uindx8) - G(dg).lat_u(Uindx5)) ;
       else
-        pu = (S.contact(cr).point.Xrg_u - G(dg).x_u(UindexO)) ./        ...
-             (G(dg).x_u(UindexR) - G(dg).x_u(UindexO));
-        qu = (S.contact(cr).point.Yrg_u - G(dg).y_u(UindexO)) ./        ...
-             (G(dg).y_u(UindexT) - G(dg).y_u(UindexO));
+        pu = (S.contact(cr).point.Xrg_u - G(dg).x_u(Uindx5)) ./         ...
+             (G(dg).x_u(Uindx6) - G(dg).x_u(Uindx5));
+        qu = (S.contact(cr).point.Yrg_u - G(dg).y_u(Uindx5)) ./         ...
+             (G(dg).y_u(Uindx8) - G(dg).y_u(Uindx5));
       end
     end
       
-    if (any(isnan(pu))),      % If any of the factors are NaN,
-      pu(isnan(pu)) = 0;      % it imply that we are dividing
-    end                       % by zero. Therefore, this is a
-    if (any(isnan(qu))),      % coincident point since there
-      qu(isnan(qu)) = 0;      % are not values at either I+1
-    end                       % or J+1.
+    S.Lweights(cr).H_u = linear_weights(pu, qu,                         ...
+                                        Uindx5, Uindx6,                 ...
+                                        Uindx9, Uindx8,                 ...
+                                        ImposeMask, G(dg).mask_u);
 
-    S.weights(cr).H_u(1,:) = (1 - pu) .* (1 - qu);
-    S.weights(cr).H_u(2,:) = pu .* (1 - qu);
-    S.weights(cr).H_u(3,:) = pu .* qu;
-    S.weights(cr).H_u(4,:) = (1 - pu) .* qu;
+    S.Qweights(cr).H_u = quadratic_weights(1-pu, qu,                    ...
+                                           Uindx1, Uindx2, Uindx3,      ...
+                                           Uindx4, Uindx5, Uindx6,      ...
+                                           Uindx7, Uindx8, Uindx9,      ...
+                                           S.grid(rg).refine_factor,    ...
+                                           ImposeMask, G(dg).mask_u);
 
-    indU = find(abs(S.weights(cr).H_u) < 100*eps);
-    if (~isempty(indU)),                             % impose positive zero
-      S.weights(cr).H_u(indU) = 0;
-    end
-
-    indU = find(abs(S.weights(cr).H_u-1) < 100*eps);
-    if (~isempty(indU)),                             % impose exact one
-      S.weights(cr).H_u(indU) = 1;
-    end
   end
 
 % V-contact points.  Recall that we need to shift J by one since
 % Matlat does not support zero-indices.
 
-  if (S.contact(cr).refinement && (dg > rg)),
+  if (S.contact(cr).refinement && (dg > rg))
     Hzero = zeros(size(S.contact(cr).point.Irg_v));
-    S.weights(cr).H_v(1,:) = Hzero;
-    S.weights(cr).H_v(2,:) = Hzero;
-    S.weights(cr).H_v(3,:) = Hzero;
-    S.weights(cr).H_v(4,:) = Hzero;
+    S.Lweights(cr).H_v(1,:) = Hzero;
+    S.Lweights(cr).H_v(2,:) = Hzero;
+    S.Lweights(cr).H_v(3,:) = Hzero;
+    S.Lweights(cr).H_v(4,:) = Hzero;
+
+    S.Qweights(cr).H_v(1,:) = Hzero;
+    S.Qweights(cr).H_v(2,:) = Hzero;
+    S.Qweights(cr).H_v(3,:) = Hzero;
+    S.Qweights(cr).H_v(4,:) = Hzero;
+    S.Qweights(cr).H_v(5,:) = Hzero;
+    S.Qweights(cr).H_v(6,:) = Hzero;
+    S.Qweights(cr).H_v(7,:) = Hzero;
+    S.Qweights(cr).H_v(8,:) = Hzero;
+    S.Qweights(cr).H_v(9,:) = Hzero;
+
     Vcompute = false;
   else
     [Iv,Jv] = size(S.grid(dg).I_v);
-    VindexO = sub2ind([Iv, Jv],                                         ...
-                      min(Iv, S.contact(cr).point.Idg_v+1),             ...
-                      S.contact(cr).point.Jdg_v  );          % left-bottom
-    VindexR = sub2ind([Iv, Jv],                                         ...
-                      min(Iv, S.contact(cr).point.Idg_v+2),             ...
-                      S.contact(cr).point.Jdg_v  );          % right-bottom
-    VindexT = sub2ind([Iv, Jv],                                         ...
-                      min(Iv, S.contact(cr).point.Idg_v+1),             ...
-                      min(Jv, S.contact(cr).point.Jdg_v+1)); % left-top
+
+    Idg   = S.contact(cr).point.Idg_v+1;                  % Idg
+    Idgm1 = max(1, min(Iv, Idg-1));                       % Idg-1
+    Idgp1 = min(Iv, Idg+1);                               % Idg+1
+    
+    Jdg   = S.contact(cr).point.Jdg_v;                    % Jdg
+    Jdgm1 = max(1, min(Jv, Jdg-1));                       % Jdg-1
+    Jdgp1 = min(Jv, Jdg+1);                               % Jdg+1
+
+    Vindx1 = sub2ind([Iv,Jv], Idgm1, Jdgm1);              % (Idg-1, Jdg-1)
+    Vindx2 = sub2ind([Iv,Jv], Idg  , Jdgm1);              % (Idg  , Jdg-1)
+    Vindx3 = sub2ind([Iv,Jv], Idgp1, Jdgm1);              % (Idg+1, Jdg-1)
+    Vindx4 = sub2ind([Iv,Jv], Idgm1, Jdg  );              % (Idg-1, Jdg  )
+    Vindx5 = sub2ind([Iv,Jv], Idg  , Jdg  );              % (Idg  , Jdg  )
+    Vindx6 = sub2ind([Iv,Jv], Idgp1, Jdg  );              % (Idg+1, Jdg  )
+    Vindx7 = sub2ind([Iv,Jv], Idgm1, Jdgp1);              % (Idg-1, Jdg+1)
+    Vindx8 = sub2ind([Iv,Jv], Idg  , Jdgp1);              % (Idg  , Jdg+1)
+    Vindx9 = sub2ind([Iv,Jv], Idgp1, Jdgp1);              % (Idg+1, Jdg+1)
+    
     Vcompute = true;
   end
-  if (Vcompute),
+  if (Vcompute)
     if (S.contact(cr).refinement)
-      pv = (S.contact(cr).point.xrg_v - S.grid(dg).XI_v(VindexO))./     ...
-           (S.grid(dg).XI_v(VindexR)  - S.grid(dg).XI_v(VindexO));
-      qv = (S.contact(cr).point.erg_v - S.grid(dg).ETA_v(VindexO))./    ...
-           (S.grid(dg).ETA_v(VindexT) - S.grid(dg).ETA_v(VindexO));
+      pv = (S.contact(cr).point.xrg_v - S.grid(dg).XI_v(Vindx5))./      ...
+           (S.grid(dg).XI_v(Vindx6)  - S.grid(dg).XI_v(Vindx5));
+      qv = (S.contact(cr).point.erg_v - S.grid(dg).ETA_v(Vindx5))./     ...
+           (S.grid(dg).ETA_v(Vindx8) - S.grid(dg).ETA_v(Vindx5));
     else
-      if (spherical),
-        pv = (S.contact(cr).point.Xrg_v - G(dg).lon_v(VindexO)) ./      ...
-             (G(dg).lon_v(VindexR) - G(dg).lon_v(VindexO));
-        qv = (S.contact(cr).point.Yrg_v - G(dg).lat_v(VindexO)) ./      ...
-             (G(dg).lat_v(VindexT) - G(dg).lat_v(VindexO)) ;
+      if (spherical)
+        pv = (S.contact(cr).point.Xrg_v - G(dg).lon_v(Vindx5)) ./       ...
+             (G(dg).lon_v(Vindx6) - G(dg).lon_v(Vindx5));
+        qv = (S.contact(cr).point.Yrg_v - G(dg).lat_v(Vindx5)) ./       ...
+             (G(dg).lat_v(Vindx8) - G(dg).lat_v(Vindx5)) ;
       else
-        pv = (S.contact(cr).point.Xrg_v - G(dg).x_v(VindexO)) ./        ...
-             (G(dg).x_v(VindexR) - G(dg).x_v(VindexO));
-        qv = (S.contact(cr).point.Yrg_v - G(dg).y_v(VindexO)) ./        ...
-             (G(dg).y_v(VindexT) - G(dg).y_v(VindexO));
+        pv = (S.contact(cr).point.Xrg_v - G(dg).x_v(Vindx5)) ./         ...
+             (G(dg).x_v(Vindx6) - G(dg).x_v(Vindx5));
+        qv = (S.contact(cr).point.Yrg_v - G(dg).y_v(Vindx5)) ./         ...
+             (G(dg).y_v(Vindx8) - G(dg).y_v(Vindx5));
       end
     end
       
-    if (any(isnan(pv))),      % If any of the factors are NaN,
-      pv(isnan(pv)) = 0;      % it imply that we are dividing
-    end                       % by zero. Therefore, this is a
-    if (any(isnan(qv))),      % coincident point since there
-      qv(isnan(qv)) = 0;      % are not values at either I+1
-    end                       % or J+1.
+    S.Lweights(cr).H_v = linear_weights(pv, qv,                         ...
+                                        Vindx5, Vindx6,                 ...
+                                        Vindx8, Vindx9,                 ...
+                                        ImposeMask, G(dg).mask_v);
 
-    S.weights(cr).H_v(1,:) = (1 - pv) .* (1 - qv);
-    S.weights(cr).H_v(2,:) = pv .* (1 - qv);
-    S.weights(cr).H_v(3,:) = pv .* qv;
-    S.weights(cr).H_v(4,:) = (1 - pv) .* qv;
-
-    indV = find(abs(S.weights(cr).H_v) < 100*eps);
-    if (~isempty(indV)),                             % impose positive zero
-      S.weights(cr).H_v(indV) = 0;
-    end
-
-    indV = find(abs(S.weights(cr).H_v-1) < 100*eps);
-    if (~isempty(indV)),                             % impose exact one
-      S.weights(cr).H_v(indV) = 1;
-    end
+    S.Qweights(cr).H_v = quadratic_weights(1-pv, qv,                    ...
+                                           Vindx1, Vindx2, Vindx3,      ...
+                                           Vindx4, Vindx5, Vindx6,      ...
+                                           Vindx7, Vindx8, Vindx9,      ...
+                                           S.grid(rg).refine_factor,    ...
+                                           ImposeMask, G(dg).mask_v);
   end
 
 % Debugging.
 
-  if (Ldebug),
+  if (Ldebug)
 
     frmt = ['%7.7i %12.5e %12.5e %12.5e %12.5e %12.5e %5i %7i %7i ',    ...
               '%10.5f %10.5f %10.5f %5i %7i %10.5f %10.5f %10.5f\n'];
-    if (S.contact(cr).refinement),
+    if (S.contact(cr).refinement)
       Labels = ['   n     Hweight(1)   Hweight(2)   Hweight(3) ',       ...
-                '  Hweight(4)       SUM       Idg   indxO   indxR  ',   ...
-                '  XIdgO       XIrg      XIdgR     Jdg   indxT  ',      ...
+                '  Hweight(4)       SUM       Idg   indx5   indx6  ',   ...
+                '  XIdgO       XIrg      XIdgR     Jdg   indx8  ',      ...
                 '  ETAdgO     ETArg      ETAdgT'];
     else
       if (spherical)
         Labels = ['   n     Hweight(1)   Hweight(2)   Hweight(3) ',     ...
-                  '  Hweight(4)       SUM       Idg   indxO ',          ...
-                  '  indxR    dgLonO      Xrg       dgLonR  ',          ...
-                  '  Jdg   indxT    dgLatO      Yrg       dgLatT'];
+                  '  Hweight(4)       SUM       Idg   indx5 ',          ...
+                  '  indx6    dgLonO      Xrg       dgLonR  ',          ...
+                  '  Jdg   indx8    dgLatO      Yrg       dgLatT'];
       else
         Labels = ['   n     Hweight(1)   Hweight(2)   Hweight(3) ',     ...
-                  '  Hweight(4)       SUM       Idg   indxO ',          ...
-                  '  indxR     XdgO       Xrg        XdgR   ',          ...
-                  '  Jdg   indxT     YdgO       Yrg        YdxT'];
+                  '  Hweight(4)       SUM       Idg   indx5 ',          ...
+                  '  indx6     XdgO       Xrg        XdgR   ',          ...
+                  '  Jdg   indx8     YdgO       Yrg        YdxT'];
       end
     end
     
-    if (cr == 1),
+    if (cr == 1)
       Rname = 'Rweigths.txt';
       Rout = fopen(Rname, 'w+');
-      if (Rout < 0),
+      if (Rout < 0)
         error(['Hweights - Cannot create debugging file: ', Rname, '.']);
       end
       s = 'Interpolation Weights at RHO-contact points: ';
@@ -2653,62 +2666,62 @@ for cr=1:Ncontact,
       fprintf (Rout, 'Contact Region = %2.2i\n\n', cr);
     end
     
-    if (Rcompute),
+    if (Rcompute)
       fprintf (Rout, '%s \n\n', Labels);
-      if (S.contact(cr).refinement),
-        for n=1:length(S.contact(cr).point.Xrg_rho),
+      if (S.contact(cr).refinement)
+        for n=1:length(S.contact(cr).point.Xrg_rho)
           fprintf (Rout, frmt,                                          ...
                    [n,                                                  ...
-                    transpose(S.weights(cr).H_rho(:,n)),                ...
-                    sum(S.weights(cr).H_rho(:,n)),                      ...
+                    transpose(S.Lweights(cr).H_rho(:,n)),               ...
+                    sum(S.Lweights(cr).H_rho(:,n)),                     ...
                     S.contact(cr).point.Idg_rho(n)+1,                   ...
-                    RindexO(n),                                         ...
-                    RindexR(n),                                         ...
-                    S.grid(dg).XI_rho(RindexO(n)),                      ...
+                    Rindx5(n),                                          ...
+                    Rindx6(n),                                          ...
+                    S.grid(dg).XI_rho(Rindx5(n)),                       ...
                     S.contact(cr).point.xrg_rho(n),                     ...
-                    S.grid(dg).XI_rho(RindexR(n)),                      ...
+                    S.grid(dg).XI_rho(Rindx6(n)),                       ...
                     S.contact(cr).point.Jdg_rho(n)+1,                   ...
-                    RindexT(n),                                         ...
-                    S.grid(dg).ETA_rho(RindexO(n)),                     ...
+                    Rindx8(n),                                          ...
+                    S.grid(dg).ETA_rho(Rindx5(n)),                      ...
                     S.contact(cr).point.erg_rho(n),                     ...
-                    S.grid(dg).ETA_rho(RindexT(n))]);
+                    S.grid(dg).ETA_rho(Rindx8(n))]);
         end
       else
         if (spherical)
-          for n=1:length(S.contact(cr).point.Xrg_rho),
+          for n=1:length(S.contact(cr).point.Xrg_rho)
             fprintf (Rout, frmt,                                        ...
                      [n,                                                ...
-                      transpose(S.weights(cr).H_rho(:,n)),              ...
-                      sum(S.weights(cr).H_rho(:,n)),                    ...
+                      transpose(S.Lweights(cr).H_rho(:,n)),             ...
+                      sum(S.Lweights(cr).H_rho(:,n)),                   ...
                       S.contact(cr).point.Idg_rho(n)+1,                 ...
-                      RindexO(n),                                       ...
-                      RindexR(n),                                       ...
-                      G(dg).lon_rho(RindexO(n)),                        ...
+                      Rindx5(n),                                        ...
+                      Rindx6(n),                                        ...
+                      G(dg).lon_rho(Rindx5(n)),                         ...
                       S.contact(cr).point.Xrg_rho(n),                   ...
-                      G(dg).lon_rho(RindexR(n)),                        ...
+                      G(dg).lon_rho(Rindx6(n)),                         ...
                       S.contact(cr).point.Jdg_rho(n)+1,                 ...
-                      RindexT(n),                                       ...
-                      G(dg).lat_rho(RindexO(n)),                        ...
+                      Rindx8(n),                                        ...
+                      G(dg).lat_rho(Rindx5(n)),                         ...
                       S.contact(cr).point.Yrg_rho(n),                   ...
-                      G(dg).lat_rho(RindexT(n))]);
+                      G(dg).lat_rho(Rindx8(n))]);
           end
         else
-          for n=1:length(S.contact(cr).point.Xrg_rho),
+          for n=1:length(S.contact(cr).point.Xrg_rho)
             fprintf (Rout, frmt,                                        ...
                      [n,                                                ...
-                      transpose(S.weights(cr).H_rho(:,n)),              ...
-                      sum(S.weights(cr).H_rho(:,n)),                    ...
+                      transpose(S.Lweights(cr).H_rho(:,n)),             ...
+                      sum(S.Lweights(cr).H_rho(:,n)),                   ...
                       S.contact(cr).point.Idg_rho(n)+1,                 ...
-                      RindexO(n),                                       ...
-                      RindexR(n),                                       ...
-                      G(dg).x_rho(RindexO(n)),                          ...
+                      Rindx5(n),                                        ...
+                      Rindx6(n),                                        ...
+                      G(dg).x_rho(Rindx5(n)),                           ...
                       S.contact(cr).point.Xrg_rho(n),                   ...
-                      G(dg).x_rho(RindexR(n)),                          ...
+                      G(dg).x_rho(Rindx6(n)),                           ...
                       S.contact(cr).point.Jdg_rho(n)+1,                 ...
-                      RindexT(n),                                       ...
-                      G(dg).y_rho(RindexO(n)),                          ...
+                      Rindx8(n),                                        ...
+                      G(dg).y_rho(Rindx5(n)),                           ...
                       S.contact(cr).point.Yrg_rho(n),                   ...
-                      G(dg).y_rho(RindexT(n))]);
+                      G(dg).y_rho(Rindx8(n))]);
           end
         end
       end
@@ -2716,10 +2729,10 @@ for cr=1:Ncontact,
       fprintf (Rout,'  Weights are zero because they are not needed.\n\n');
     end
 
-    if (cr == 1),
+    if (cr == 1)
       Uname = 'Uweigths.txt';
       Uout = fopen(Uname, 'w+');
-      if (Uout < 0),
+      if (Uout < 0)
         error(['Hweights - Cannot create debugging file: ', Uname, '.']);
       end
       s = 'Interpolation Weights at U-contact points: ';
@@ -2729,62 +2742,62 @@ for cr=1:Ncontact,
       fprintf (Uout, 'Contact Region = %2.2i\n\n', cr);
     end
 
-    if (Ucompute),
+    if (Ucompute)
       fprintf (Uout, '%s \n\n', Labels);
-      if (S.contact(cr).refinement),
-        for n=1:length(S.contact(cr).point.Xrg_u),
+      if (S.contact(cr).refinement)
+        for n=1:length(S.contact(cr).point.Xrg_u)
           fprintf (Uout, frmt,                                          ...
                    [n,                                                  ...
-                    transpose(S.weights(cr).H_u(:,n)),                  ...
-                    sum(S.weights(cr).H_u(:,n)),                        ...
+                    transpose(S.Lweights(cr).H_u(:,n)),                 ...
+                    sum(S.Lweights(cr).H_u(:,n)),                       ...
                     S.contact(cr).point.Idg_u(n)+1,                     ...
-                    UindexO(n),                                         ...
-                    UindexR(n),                                         ...
-                    S.grid(dg).XI_u(UindexO(n)),                        ...
+                    Uindx5(n),                                          ...
+                    Uindx6(n),                                          ...
+                    S.grid(dg).XI_u(Uindx5(n)),                         ...
                     S.contact(cr).point.xrg_u(n),                       ...
-                    S.grid(dg).XI_u(UindexR(n)),                        ...
+                    S.grid(dg).XI_u(Uindx6(n)),                         ...
                     S.contact(cr).point.Jdg_u(n)+1,                     ...
-                    UindexT(n),                                         ...
-                    S.grid(dg).ETA_u(UindexO(n)),                       ...
+                    Uindx8(n),                                          ...
+                    S.grid(dg).ETA_u(Uindx5(n)),                        ...
                     S.contact(cr).point.erg_u(n),                       ...
-                    S.grid(dg).ETA_u(UindexT(n))]);
+                    S.grid(dg).ETA_u(Uindx8(n))]);
         end
       else
         if (spherical)
-          for n=1:length(S.contact(cr).point.Xrg_u),
+          for n=1:length(S.contact(cr).point.Xrg_u)
             fprintf (Uout, frmt,                                        ...
                      [n,                                                ...
-                      transpose(S.weights(cr).H_u(:,n)),                ...
-                      sum(S.weights(cr).H_u(:,n)),                      ...
+                      transpose(S.Lweights(cr).H_u(:,n)),               ...
+                      sum(S.Lweights(cr).H_u(:,n)),                     ...
                       S.contact(cr).point.Idg_u(n)+1,                   ...
-                      UindexO(n),                                       ...
-                      UindexR(n),                                       ...
-                      G(dg).lon_u(UindexO(n)),                          ...
+                      Uindx5(n),                                        ...
+                      Uindx6(n),                                        ...
+                      G(dg).lon_u(Uindx5(n)),                           ...
                       S.contact(cr).point.Xrg_u(n),                     ...
-                      G(dg).lon_u(UindexR(n)),                          ...
+                      G(dg).lon_u(Uindx6(n)),                           ...
                       S.contact(cr).point.Jdg_u(n)+1,                   ...
-                      UindexT(n),                                       ...
-                      G(dg).lat_u(UindexO(n)),                          ...
+                      Uindx8(n),                                        ...
+                      G(dg).lat_u(Uindx5(n)),                           ...
                       S.contact(cr).point.Yrg_u(n),                     ...
-                      G(dg).lat_u(UindexT(n))]);
+                      G(dg).lat_u(Uindx8(n))]);
           end
         else
-          for n=1:length(S.contact(cr).point.Xrg_u),
+          for n=1:length(S.contact(cr).point.Xrg_u)
             fprintf (Uout, frmt,                                        ...
                      [n,                                                ...
-                      transpose(S.weights(cr).H_u(:,n)),                ...
-                      sum(S.weights(cr).H_u(:,n)),                      ...
+                      transpose(S.Lweights(cr).H_u(:,n)),               ...
+                      sum(S.Lweights(cr).H_u(:,n)),                     ...
                       S.contact(cr).point.Idg_u(n)+1,                   ...
-                      UindexO(n),                                       ...
-                      UindexR(n),                                       ...
-                      G(dg).x_u(UindexO(n)),                            ...
+                      Uindx5(n),                                        ...
+                      Uindx6(n),                                        ...
+                      G(dg).x_u(Uindx5(n)),                             ...
                       S.contact(cr).point.Xrg_u(n),                     ...
-                      G(dg).x_u(UindexR(n)),                            ...
+                      G(dg).x_u(Uindx6(n)),                             ...
                       S.contact(cr).point.Jdg_u(n)+1,                   ...
-                      UindexT(n),                                       ...
-                      G(dg).y_u(UindexO(n)),                            ...
+                      Uindx8(n),                                        ...
+                      G(dg).y_u(Uindx5(n)),                             ...
                       S.contact(cr).point.Yrg_u(n),                     ...
-                      G(dg).y_u(UindexT(n))]);
+                      G(dg).y_u(Uindx8(n))]);
           end
         end
       end
@@ -2792,10 +2805,10 @@ for cr=1:Ncontact,
       fprintf (Uout,'  Weights are zero because they are not needed.\n\n');
     end
 
-    if (cr == 1),
+    if (cr == 1)
       Vname = 'Vweigths.txt';
       Vout = fopen(Vname, 'w+');
-      if (Vout < 0),
+      if (Vout < 0)
         error(['Hweights - Cannot create debugging file: ', Vname, '.']);
       end
       s = 'Interpolation Weights at V-contact points: ';
@@ -2805,62 +2818,62 @@ for cr=1:Ncontact,
       fprintf (Vout, 'Contact Region = %2.2i\n\n', cr);    
     end
 
-    if (Vcompute),
+    if (Vcompute)
       fprintf (Vout, '%s \n\n', Labels);
-      if (S.contact(cr).refinement),
-        for n=1:length(S.contact(cr).point.Xrg_v),
+      if (S.contact(cr).refinement)
+        for n=1:length(S.contact(cr).point.Xrg_v)
           fprintf (Vout, frmt,                                          ...
                    [n,                                                  ...
-                    transpose(S.weights(cr).H_v(:,n)),                  ...
-                    sum(S.weights(cr).H_v(:,n)),                        ...
+                    transpose(S.Lweights(cr).H_v(:,n)),                 ...
+                    sum(S.Lweights(cr).H_v(:,n)),                       ...
                     S.contact(cr).point.Idg_v(n)+1,                     ...
-                    VindexO(n),                                         ...
-                    VindexR(n),                                         ...
-                    S.grid(dg).XI_v(VindexO(n)),                        ...
+                    Vindx5(n),                                          ...
+                    Vindx6(n),                                          ...
+                    S.grid(dg).XI_v(Vindx5(n)),                         ...
                     S.contact(cr).point.xrg_v(n),                       ...
-                    S.grid(dg).XI_v(VindexR(n)),                        ...
+                    S.grid(dg).XI_v(Vindx6(n)),                         ...
                     S.contact(cr).point.Jdg_v(n)+1,                     ...
-                    VindexT(n),                                         ...
-                    S.grid(dg).ETA_v(VindexO(n)),                       ...
+                    Vindx8(n),                                          ...
+                    S.grid(dg).ETA_v(Vindx5(n)),                        ...
                     S.contact(cr).point.erg_v(n),                       ...
-                    S.grid(dg).ETA_v(VindexT(n))]);
+                    S.grid(dg).ETA_v(Vindx8(n))]);
         end
       else
         if (spherical)
-          for n=1:length(S.contact(cr).point.Xrg_v),
+          for n=1:length(S.contact(cr).point.Xrg_v)
             fprintf (Vout, frmt,                                        ...
                      [n,                                                ...
-                      transpose(S.weights(cr).H_v(:,n)),                ...
-                      sum(S.weights(cr).H_v(:,n)),                      ...
+                      transpose(S.Lweights(cr).H_v(:,n)),               ...
+                      sum(S.Lweights(cr).H_v(:,n)),                     ...
                       S.contact(cr).point.Idg_v(n)+1,                   ...
-                      VindexO(n),                                       ...
-                      VindexR(n),                                       ...
-                      G(dg).lon_v(VindexO(n)),                          ...
+                      Vindx5(n),                                        ...
+                      Vindx6(n),                                        ...
+                      G(dg).lon_v(Vindx5(n)),                           ...
                       S.contact(cr).point.Xrg_v(n),                     ...
-                      G(dg).lon_v(VindexR(n)),                          ...
+                      G(dg).lon_v(Vindx6(n)),                           ...
                       S.contact(cr).point.Jdg_v(n)+1,                   ...
-                      VindexT(n),                                       ...
-                      G(dg).lat_v(VindexO(n)),                          ...
+                      Vindx8(n),                                        ...
+                      G(dg).lat_v(Vindx5(n)),                           ...
                       S.contact(cr).point.Yrg_v(n),                     ...
-                      G(dg).lat_v(VindexT(n))]);
+                      G(dg).lat_v(Vindx8(n))]);
           end
         else
-          for n=1:length(S.contact(cr).point.Xrg_v),
+          for n=1:length(S.contact(cr).point.Xrg_v)
             fprintf (Vout, frmt,                                        ...
                      [n,                                                ...
-                      transpose(S.weights(cr).H_v(:,n)),                ...
-                      sum(S.weights(cr).H_v(:,n)),                      ...
+                      transpose(S.Lweights(cr).H_v(:,n)),               ...
+                      sum(S.Lweights(cr).H_v(:,n)),                     ...
                       S.contact(cr).point.Idg_v(n)+1,                   ...
-                      VindexO(n),                                       ...
-                      VindexR(n),                                       ...
-                      G(dg).x_v(VindexO(n)),                            ...
+                      Vindx5(n),                                        ...
+                      Vindx6(n),                                        ...
+                      G(dg).x_v(Vindx5(n)),                             ...
                       S.contact(cr).point.Xrg_v(n),                     ...
-                      G(dg).x_v(VindexR(n)),                            ...
+                      G(dg).x_v(Vindx6(n)),                             ...
                       S.contact(cr).point.Jdg_v(n)+1,                   ...
-                      VindexT(n),                                       ...
-                      G(dg).y_v(VindexO(n)),                            ...
+                      Vindx8(n),                                        ...
+                      G(dg).y_v(Vindx5(n)),                             ...
                       S.contact(cr).point.Yrg_v(n),                     ...
-                      G(dg).y_v(VindexT(n))]);
+                      G(dg).y_v(Vindx8(n))]);
           end
         end
       end
@@ -2868,15 +2881,414 @@ for cr=1:Ncontact,
       fprintf (Vout,'  Weights are zero because they are not needed.\n\n');
     end
   end
-  clear RindexO RindexR RindexT Rcompute
-  clear UindexO UindexR UindexT Ucompute
-  clear VindexO VindexR VindexT Vcompute
+  clear Rindx5 Rindx6 Rindx8 Rcompute
+  clear Uindx5 Uindx6 Uindx8 Ucompute
+  clear Vindx5 Vindx6 Vindx8 Vcompute
 end
 
-if (Ldebug),
+if (Ldebug)
   fclose (Rout);
   fclose (Uout);
   fclose (Vout);
 end  
+
+return
+
+%--------------------------------------------------------------------------
+
+function W = linear_weights(p, q, index1, index2, index3, index4,       ...
+                            ImposeMask, mask)
+
+%
+% W = linear_weights(p, q, index1, index2, index4, ImposeMask, mask)
+%
+% This function computes the contact points horizontal linear
+% interpolation weights given the fractional distances (p,q) from
+% the donor grid.  The weights are adjusted in the presence of
+% land/sea masking.
+%
+% On Input:
+%
+%    p          Contact points fractional I-distance with respect
+%                 the donor grid cell (vector)
+%
+%    q          Contact points fractional J-distance with respect
+%                 the donor grid cell (vector)
+%
+%    index1     Single linear indexes for 2D subscripts in donor
+%                 grid cell corner 1 (Idg,Jdg) for each contact
+%                 point (vector).
+%
+%    index2     Single linear indexes for 2D subscripts in donor
+%                 grid cell corner 2 (Idg+1,Jdg) for each contact
+%                 point (vector).
+%
+%    index3     Single linear indexes for 2D subscripts in donor
+%                 grid cell corner 3 (Idg+1,Jdg+1) for each contact
+%                 point (vector).
+%
+%    index4     Single linear indexes for 2D subscripts in donor
+%                 grid cell corner 4 (Idg,Jdg+1) for each contact
+%                 point (vector).
+%
+%    ImposeMask Switch to scale weights with the land/sea mask.
+%
+%    mask       Donor grid land/sea masking (2D array).
+%
+% On Output:
+%
+%    W(1:4,:)   Contact point linear interpolation weights (2D array):
+%
+%                 W(1,:)    interpolation weight for corner 1
+%                 W(2,:)    interpolation weight for corner 2
+%                 W(3,:)    interpolation weight for corner 3
+%                 W(4,:)    interpolation weight for corner 4
+%
+%
+% The following diagrams show the conventions for linear interpolation:
+%
+%                 index4         index3
+%
+%                   4______________3  (Idg+1,Jdg+1)
+%                   |  :           |
+%                   |  :       p   |
+%                   | 1-q   <----->|
+%                   |  :           |
+%                 Jr|..:....x   :  |
+%                   |       .   :  |
+%                   |  1-p  .   :  |
+%                   |<------>   q  |
+%                   |       .   :  |
+%                   |       .   :  |
+%                   |___________:__|
+%         (Idg,Jdg) 1       Ir     2
+%
+%                 index1         index2
+%
+% For linear interpolation and all water points, the weights are:
+%
+%     W(1,:) = (1 - p) * (1 - q)
+%     W(2,:) = p * (1 - q)
+%     W(3,:) = p * q
+%     W(4,:) = (1 - p) * q
+%
+% In ROMS, the linear interpolation is carried out as:
+%
+%     V(Irg, Jrg) = W(1,:) * F2D(Idg,  Jdg  ) +
+%                   W(2,:) * F2D(Idg+1,Jdg  ) + 
+%                   W(3,:) * F2D(Idg+1,Jdg+1) +
+%                   W(4,:) * F2D(Idg,  Jdg+1) 
+%
+
+% Initalize.
+
+Npoints = length(p);
+
+% If any of the input fractional distances is NaN, it implies that
+% we were diving by zero in the calling function. Therefore, the
+% contact point is concident to the donor grid physical grid boundary
+% and there are not values at either Idg+1 or Jdg+1.
+
+if (any(isnan(p)))
+  p(isnan(p)) = 0;
+end
+
+if (any(isnan(q)))
+  q(isnan(q)) = 0;
+end
+
+%--------------------------------------------------------------------------
+% Compute linear interpolation weigths.
+%--------------------------------------------------------------------------
+
+W  = zeros([4 Npoints]);
+LW = [0 0 0 0];
+
+for n=1:Npoints
+  LW(1) = mask(index1(n)) * (1 - p(n)) * (1 - q(n));
+  LW(2) = mask(index2(n)) * p(n) * (1 - q(n));
+  LW(3) = mask(index3(n)) * p(n) * q(n);
+  LW(4) = mask(index4(n)) * (1 -p(n)) * q(n);
+
+  if (ImposeMask)
+    MaskSum = mask(index1(n)) + mask(index2(n)) +                       ...
+              mask(index3(n)) + mask(index4(n));
+
+    if (MaskSum < 4)                 % at least one of the corners is land
+      LWsum = sum(LW);
+      if (LWsum > 0)
+        LW = LW ./ LWsum;            % using only water points
+      else
+        LW(1:4) = 0;                 % all donor grid corners are on land
+      end
+    end
+  end
+    
+  W(:,n) = LW;
+end
+
+% Impose positive zero.
+
+ind0 = find(abs(W) < 100*eps);
+if (~isempty(ind0))
+  W(ind0) = 0;
+end
+
+% Impose exact unity.
+
+ind1 = find(abs(W - 1) < 100*eps);
+if (~isempty(ind1))
+  W(ind1) = 1;
+end
+
+return
+
+%--------------------------------------------------------------------------
+
+function W = quadratic_weights(p, q,                                    ...
+                               index1, index2, index3,                  ...
+                               index4, index5, index6,                  ...
+                               index7, index8, index9,                  ...
+			       rfactor, ImposeMask, mask)
+
+%
+% W = quadratic_weights(p, q, index2, index5, index8, rfactor,
+%                       ImposeMask, mask)
+%
+% This function computes the contact points horizontal quadratic
+% interpolation weights given the fractional distances (p,q) from
+% the donor grid.  The weights are adjusted in the presence of
+% land/sea masking.
+%
+% If refined grids (rfactor > 0), the quadratic interpolation weights are
+% conservative.  That is, the coarse-to-fine and fine-to-coarse are
+% reversible (Clark and Farley, 1984):
+%
+%        SUM(F(:,:,...) / rfactor^2 = C(Idg,Jdg,...)
+%
+% On Input:     (see diagram below)
+%
+%    p          Contact points fractional I-distance with respect
+%                 the donor grid point 5 (vector)
+%
+%    q          Contact points fractional J-distance with respect
+%                 the donor grid point 5 (vector)
+%
+%    index1     Single linear indexes for 2D subscripts in donor
+%                 grid cell corner 1 (Idg-1,Jdg-1) for each contact
+%                 point (vector).
+%
+%    index2     Single linear indexes for 2D subscripts in donor
+%                 grid cell corner 2 (Idg,Jdg-1) for each contact
+%                 point (vector).
+%
+%    index3     Single linear indexes for 2D subscripts in donor
+%                 grid cell corner 3 (Idg+1,Jdg-1) for each contact
+%                 point (vector).
+%
+%    index4     Single linear indexes for 2D subscripts in donor
+%                 grid cell corner 4 (Idg-1,Jdg) for each contact
+%                 point (vector).
+%
+%    index5     Single linear indexes for 2D subscripts in donor
+%                 grid cell corner 5 (Idg,Jdg) for each contact
+%                 point (vector).
+%
+%    index6     Single linear indexes for 2D subscripts in donor
+%                 grid cell corner 6 (Idg+1,Jdg) for each contact
+%                 point (vector).
+%
+%    index7     Single linear indexes for 2D subscripts in donor
+%                 grid cell corner 7 (Idg-1,Jdg+1) for each contact
+%                 point (vector).
+%
+%    index8     Single linear indexes for 2D subscripts in donor
+%                 grid cell corner 8 (Idg,Jdg+1) for each contact
+%                 point (vector).
+%
+%    index9     Single linear indexes for 2D subscripts in donor
+%                 grid cell corner 9 (Idg+1,Jdg+1) for each contact
+%                 point (vector).
+%
+%    rfactor    Refine grid factor (scalar)
+%
+%                 rfactor = 0      quadratic interpolation
+%                                  (composite/mosaic grids)
+%
+%                 rfactor > 0      conservative quadratic interpolation
+%                                  (refine grids)
+%
+%    ImposeMask Switch to scale weights with the land/sea mask.
+%
+%    mask       Donor grid land/sea masking (2D array).
+%
+% On Output:
+%
+%    W(1:9,:)   Contact point quadratic interpolation weights (2D array):
+%
+%                 W(1,:)    interpolation weight in terms of donor point 1
+%                 W(2,:)    interpolation weight in terms of donor point 2
+%                 W(3,:)    interpolation weight in terms of donor point 3
+%                 W(4,:)    interpolation weight in terms of donor point 4
+%                 W(5,:)    interpolation weight in terms of donor point 5
+%                 W(6,:)    interpolation weight in terms of donor point 6
+%                 W(7,:)    interpolation weight in terms of donor point 7
+%                 W(8,:)    interpolation weight in terms of donor point 8
+%                 W(9,:)    interpolation weight in terms of donor point 9
+%
+%
+% The following diagrams show the conventions for quadratic interpolation:
+%
+%               index7           index8           index9
+%
+%                 Rm               Ro               Rp
+%
+%            Jd+1 7________________8________________9     Sp
+%                 |                |                |
+%                 |                |                |
+%                 |                |<---p--->       |
+%                 |                |                |
+%                 |             Jr |........x   :   |
+%                 |                |       .    :   |
+%                 |                |       .    q   |
+%                 |                |       .    :   |
+%            Jd   |________________|____________:___|
+%                 4                5       Ir       6     So
+%                 |                |                |
+%               index4           index5           index6
+%                 |                |                |
+%                 |                |                |
+%                 |                |                |
+%                 |                |                |
+%                 |                |                |
+%            Jd-1 |________________|________________|
+%                 1                2                3     Sm
+%
+%                Id-1              Id              Id+1  
+%
+%               index1           index2           index3
+%
+% For quadratic interpolation the coefficients are:
+%
+%     Rm = 0.5 * p * (p - 1) + alpha
+%     Ro = (1 - p^2)         - 2 * alpha
+%     Rp = 0.5 * p * (p + 1) + alpha
+%
+%     Sm = 0.5 * q * (q - 1) + alpha
+%     So = (1 - q^2)         - 2 * alpha
+%     Sp = 0.5 * q * (q + 1) + alpha
+%  
+% where      alpha = [(1/rfactor)^2 - 1] / 24       for rfactor > 0
+%                                                   (conservative)
+%
+%            alpha = 0                              for rfactor = 0
+%
+% The quadratic interpolation weights for all water points are:
+%
+%     W(1,:) = Rm * Sm
+%     W(2,:) = Ro * Sm
+%     W(3,:) = Rp * Sm
+%     W(4,:) = Rm * So
+%     W(5,:) = Ro * So
+%     W(6,:) = Rp * So
+%     W(7,:) = Rm * Sp
+%     W(8,:) = Ro * Sp
+%     W(9,:) = Rp * Sp
+%
+% In ROMS, the quadratic interpolation is carried out as:
+%
+%     F(Irg, Jrg) = W(1,:) * C(Idg-1, Jdg-1) +
+%                   W(2,:) * C(Idg  , Jdg-1) +
+%                   W(3,:) * C(Idg+1, Jdg-1) +
+%                   W(4,:) * C(Idg-1, Jdg  ) +
+%                   W(5,:) * C(Idg  , Jdg  ) +
+%                   W(6,:) * C(Idg+1, Jdg  ) +
+%                   W(7,:) * C(Idg-1, Jdg+1) +
+%                   W(8,:) * C(Idg  , Jdg+1) +
+%                   W(9,:) * C(Idg+1, Jdg+1)
+%
+
+% Initalize.
+
+Npoints = length(p);
+
+% Compute coefficient for conservative quadratic interpolation.
+
+if (rfactor > 0)
+  alpha = ((1 / rfactor)^2 - 1) / 24;
+else
+  alpha = 0;
+end
+
+% If any of the input fractional distances is NaN, it implies that
+% we were diving by zero in the calling function. Therefore, the
+% contact point is concident to the donor grid physical grid boundary
+% and there are not values at either Idg+1 or Jdg+1.
+
+if (any(isnan(p)))
+  p(isnan(p)) = 0;
+end
+
+if (any(isnan(q)))
+  q(isnan(q)) = 0;
+end
+
+%--------------------------------------------------------------------------
+% Compute quadratic interpolation weigths.
+%--------------------------------------------------------------------------
+
+W  = zeros([9 Npoints]);
+QW = zeros([1 9]);
+
+Rm = 0.5 .* p .* (p - 1) + alpha;
+Ro = (1 - p .* p)        - 2 * alpha;
+Rp = 0.5 .* p .* (p + 1) + alpha;
+
+Sm = 0.5 .* q .* (q - 1) + alpha;
+So = (1 - q .* q)        - 2 * alpha;
+Sp = 0.5 .* q .* (q + 1) + alpha;
+
+for n=1:Npoints
+  QW(1) = mask(index1(n)) * Rm(n) * Sm(n);
+  QW(2) = mask(index2(n)) * Ro(n) * Sm(n);
+  QW(3) = mask(index3(n)) * Rp(n) * Sm(n);
+  QW(4) = mask(index4(n)) * Rm(n) * So(n);
+  QW(5) = mask(index5(n)) * Ro(n) * So(n);
+  QW(6) = mask(index6(n)) * Rp(n) * So(n);
+  QW(7) = mask(index7(n)) * Rm(n) * Sp(n);
+  QW(8) = mask(index8(n)) * Ro(n) * Sp(n);
+  QW(9) = mask(index9(n)) * Rp(n) * Sp(n);
+
+  if (ImposeMask)
+    MaskSum = mask(index1(n)) + mask(index2(n)) +  mask(index3(n)) +    ...
+              mask(index4(n)) + mask(index5(n)) +  mask(index6(n)) +    ...
+              mask(index7(n)) + mask(index8(n)) +  mask(index9(n));
+
+    if (MaskSum < 9)           % at least one of the donor points is land
+      QWsum = sum(QW);
+      if (QWsum > 0)
+        QW = QW ./ QWsum;      % using only water points
+      else
+        QW(1:9) = 0;           % all donor points are on land
+      end
+    end
+  end
+  
+  W(:,n) = QW;    
+end
+
+% Impose positive zero.
+
+ind0 = find(abs(W) < 100*eps);
+if (~isempty(ind0))
+  W(ind0) = 0;
+end
+
+% Impose exact unity.
+
+ind1 = find(abs(W - 1) < 100*eps);
+if (~isempty(ind1))
+  W(ind1) = 1;
+end
 
 return

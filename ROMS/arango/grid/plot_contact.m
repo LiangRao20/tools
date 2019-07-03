@@ -18,9 +18,9 @@ function plot_contact(G, S)
 %                 [S, G] = contact (Gnames, Cname, ...)
 %
 
-% svn $Id: plot_contact.m 711 2014-01-23 20:36:13Z arango $
+% svn $Id: plot_contact.m 938 2019-01-28 06:35:10Z arango $
 %=========================================================================%
-%  Copyright (c) 2002-2014 The ROMS/TOMS Group                            %
+%  Copyright (c) 2002-2019 The ROMS/TOMS Group                            %
 %    Licensed under a MIT/X style license                                 %
 %    See License_ROMS.txt                           Hernan G. Arango      %
 %=========================================================================%
@@ -92,14 +92,14 @@ for cr=1:S.Ncontact,
     set(gca,'fontsize',14,'fontweight','bold');
   end      
       
-  if (S.contact(cr).corners.okey),
+  if (S.contact(cr).corners.okay),
     ph3 = plot(S.contact(cr).corners.Xdg,                               ...
                S.contact(cr).corners.Ydg, 'ks');
     set(ph3, 'MarkerSize', 12);
   end
 
   for ib=1:4,
-    if (S.contact(cr).boundary(ib).okey),
+    if (S.contact(cr).boundary(ib).okay),
       ph4 = plot(S.contact(cr).boundary(ib).Xdg,                         ...
                  S.contact(cr).boundary(ib).Ydg, 'ks');
       set(ph4, 'MarkerSize', 12);

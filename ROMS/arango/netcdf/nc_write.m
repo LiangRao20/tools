@@ -34,9 +34,9 @@ function status = nc_write(ncfile, Vname, f, varargin)
 %    status      Error flag
 %
 
-% svn $Id: nc_write.m 711 2014-01-23 20:36:13Z arango $
+% svn $Id: nc_write.m 938 2019-01-28 06:35:10Z arango $
 %=========================================================================%
-%  Copyright (c) 2002-2014 The ROMS/TOMS Group                            %
+%  Copyright (c) 2002-2019 The ROMS/TOMS Group                            %
 %    Licensed under a MIT/X style license                                 %
 %    See License_ROMS.txt                           Hernan G. Arango      %
 %=========================================================================%
@@ -543,12 +543,12 @@ if (status ~= -1 && nvdims > 1),
   text(1:length(Vname))=Vname;
   if (nargin > 3),
     disp(['Wrote ',sprintf('%19s',text),                                ...
-          ' into record: ',num2str(Tindex,'%4.4i'), ' of file: ', ncfile,                     ...
+          ' into record: ',num2str(Tindex,'%4.4i'),                     ...
           ', Min=',sprintf('%12.5e',fmin),                              ...
           ' Max=',sprintf('%12.5e',fmax)]);
   else
     disp(['Wrote ',sprintf('%19s',text),                                ...
-          ' to file: ', ncfile, ' Min=',sprintf('%12.5e',fmin),                               ...
+          ' Min=',sprintf('%12.5e',fmin),                               ...
           ' Max=',sprintf('%12.5e',fmax)]);
   end
 end

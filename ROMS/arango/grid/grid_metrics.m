@@ -58,9 +58,9 @@ function [pm, pn, dndx, dmde] = grid_metrics(G, GreatCircle)
 %    G.x_v           V-points   Y-location (meters)
 
   
-% svn $Id: grid_metrics.m 711 2014-01-23 20:36:13Z arango $
+% svn $Id: grid_metrics.m 938 2019-01-28 06:35:10Z arango $
 %=========================================================================%
-%  Copyright (c) 2002-2014 The ROMS/TOMS Group                            %
+%  Copyright (c) 2002-2019 The ROMS/TOMS Group                            %
 %    Licensed under a MIT/X style license                                 %
 %    See License_ROMS.txt                           Hernan G. Arango      %
 %=========================================================================%
@@ -155,6 +155,26 @@ dmde = zeros(size(Xr));
 if (~G.uniform),
   dndx(2:L,2:M) = 0.5.*(1.0./pn(3:Lp,2:M ) - 1.0./pn(1:Lm,2:M ));
   dmde(2:L,2:M) = 0.5.*(1.0./pm(2:L ,3:Mp) - 1.0./pm(2:L ,1:Mm));
+
+  dndx(1  ,:)=dndx(2    ,:);
+  dndx(end,:)=dndx(end-1,:);
+  dndx(:,  1)=dndx(:,    2);
+  dndx(:,end)=dndx(:,end-1);
+
+  dndx(1  ,  1)=0.5*(dndx(1    ,    2)+dndx(2    ,    1));
+  dndx(1  ,end)=0.5*(dndx(1    ,end-1)+dndx(2    ,  end));
+  dndx(end,  1)=0.5*(dndx(end  ,    2)+dndx(end-1,    1));
+  dndx(end,end)=0.5*(dndx(end-1,  end)+dndx(end  ,end-1));
+
+  dmde(1  ,  :)=dmde(2    ,:);
+  dmde(end,  :)=dmde(end-1,:);
+  dmde(:  ,  1)=dmde(:,    2);
+  dmde(:  ,end)=dmde(:,end-1);
+
+  dmde(1  ,  1)=0.5*(dmde(1    ,    2)+dmde(2    ,    1));
+  dmde(1  ,end)=0.5*(dmde(1    ,end-1)+dmde(2    ,  end));
+  dmde(end,  1)=0.5*(dmde(end  ,    2)+dmde(end-1,    1));
+  dmde(end,end)=0.5*(dmde(end-1,  end)+dmde(end  ,end-1));
 end
 
 return

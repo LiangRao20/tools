@@ -24,9 +24,9 @@ function [spherical,x,y,bath,rmask]=read_mask(ncfile)
 %                  rmask=0 land, rmask=1 Sea.
 %
 
-% svn $Id: read_mask.m 711 2014-01-23 20:36:13Z arango $
+% svn $Id: read_mask.m 938 2019-01-28 06:35:10Z arango $
 %=========================================================================%
-%  Copyright (c) 2002-2014 The ROMS/TOMS Group                            %
+%  Copyright (c) 2002-2019 The ROMS/TOMS Group                            %
 %    Licensed under a MIT/X style license                                 %
 %    See License_ROMS.txt                           Hernan G. Arango      %
 %=========================================================================%
@@ -73,7 +73,9 @@ for n=1:nvars,
     case {Vname.h}
       got.h=true;
     case {Vname.hraw}
-      got.hraw=true;
+      if ~any(V.Variables(n).Size == 0),
+        got.hraw=true;
+      end
     case {Vname.rmask}
       got.rmask=true;
     case {Vname.xr}
@@ -89,11 +91,14 @@ end
 
 % Spherical switch.
 
-spherical=false;
 if (got.spher),
-  spher=nc_read(ncfile,Vname.spher);
-  if (spher == 'T' || spher == 't'),
-    spherical=true;
+  spherical=nc_read(ncfile,Vname.spher);
+  if (ischar(spherical)),
+    if (spherical == 'T' || spherical == 't')
+      spherical = true;
+    else
+      spherical = false;
+    end
   end
 end
 

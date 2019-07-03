@@ -47,9 +47,9 @@ function V = roms_metadata(Vname,varargin)
 %
 %                 V.ncType
 %
-% svn $Id: roms_metadata.m 722 2014-03-14 00:53:34Z arango $
+% svn $Id: roms_metadata.m 938 2019-01-28 06:35:10Z arango $
 %=========================================================================%
-%  Copyright (c) 2002-2014 The ROMS/TOMS Group                            %
+%  Copyright (c) 2002-2019 The ROMS/TOMS Group                            %
 %    Licensed under a MIT/X style license                                 %
 %    See License_ROMVariables.txt                   Hernan G. Arango      %
 %=========================================================================%
@@ -336,6 +336,197 @@ switch Vname
     end      
     V.Cgridtype.Name          = 'density point';
     V.Cgridtype.Value         = 1;
+    V.Datatype                = 'double';
+    V.ncType                  = nc_constant('nc_double');
+  case 'angle'
+    V.Name                    = Vname;
+    V.Dimensions(1).Name      = 'xi_rho';
+    V.Dimensions(1).Length    = [];
+    V.Dimensions(1).Unlimited = false;
+    V.Dimensions(2).Name      = 'eta_rho';
+    V.Dimensions(2).Length    = [];
+    V.Dimensions(2).Unlimited = false;
+    V.Size                    = [];
+    V.Attributes(1).Name      = 'long_name';
+    V.Attributes(1).Value     = 'angle between positive XI-axis relative to East';
+    V.Attributes(2).Name      = 'units';
+    V.Attributes(2).Value     = 'radians';
+    V.Attributes(3).Name      = 'coordinates';
+    if (spherical),
+      V.Attributes(3).Value   = 'lon_rho lat_rho';
+    else
+      V.Attributes(3).Value   = 'x_rho y_rho';
+    end
+    V.Cgridtype.Name          = 'density point';
+    V.Cgridtype.Value         = 1;
+    V.Datatype                = 'double';
+    V.ncType                  = nc_constant('nc_double');
+  case 'xi_rho'
+    V.Name                    = Vname;
+    V.Dimensions(1).Name      = 'xi_rho';
+    V.Dimensions(1).Length    = [];
+    V.Dimensions(1).Unlimited = false;
+    V.Dimensions(2).Name      = 'eta_rho';
+    V.Dimensions(2).Length    = [];
+    V.Dimensions(2).Unlimited = false;
+    V.Size                    = [];
+    V.Attributes(1).Name      = 'long_name';
+    V.Attributes(1).Value     = 'fractional XI-locations of RHO-points';
+    V.Attributes(2).Name      = 'coordinates';
+    if (spherical),
+      V.Attributes(2).Value   = 'lon_rho lat_rho';
+    else
+      V.Attributes(2).Value   = 'x_rho y_rho';
+    end
+    V.Cgridtype.Name          = 'density point';
+    V.Cgridtype.Value         = 1;
+    V.Datatype                = 'double';
+    V.ncType                  = nc_constant('nc_double');
+  case 'eta_rho'
+    V.Name                    = Vname;
+    V.Dimensions(1).Name      = 'xi_rho';
+    V.Dimensions(1).Length    = [];
+    V.Dimensions(1).Unlimited = false;
+    V.Dimensions(2).Name      = 'eta_rho';
+    V.Dimensions(2).Length    = [];
+    V.Dimensions(2).Unlimited = false;
+    V.Size                    = [];
+    V.Attributes(1).Name      = 'long_name';
+    V.Attributes(1).Value     = 'fractional ETA-locations of RHO-points';
+    V.Attributes(2).Name      = 'coordinates';
+    if (spherical),
+      V.Attributes(2).Value   = 'lon_rho lat_rho';
+    else
+      V.Attributes(2).Value   = 'x_rho y_rho';
+    end
+    V.Cgridtype.Name          = 'density point';
+    V.Cgridtype.Value         = 1;
+    V.Datatype                = 'double';
+    V.ncType                  = nc_constant('nc_double');
+  case 'xi_psi'
+    V.Name                    = Vname;
+    V.Dimensions(1).Name      = 'xi_psi';
+    V.Dimensions(1).Length    = [];
+    V.Dimensions(1).Unlimited = false;
+    V.Dimensions(2).Name      = 'eta_psi';
+    V.Dimensions(2).Length    = [];
+    V.Dimensions(2).Unlimited = false;
+    V.Size                    = [];
+    V.Attributes(1).Name      = 'long_name';
+    V.Attributes(1).Value     = 'fractional XI-locations of PSI-points';
+    V.Attributes(2).Name      = 'coordinates';
+    if (spherical),
+      V.Attributes(2).Value   = 'lon_psi lat_psi';
+    else
+      V.Attributes(2).Value   = 'x_psi y_psi';
+    end
+    V.Cgridtype.Name          = 'streamfunction point';
+    V.Cgridtype.Value         = 2;
+    V.Datatype                = 'double';
+    V.ncType                  = nc_constant('nc_double');
+  case 'eta_psi'
+    V.Name                    = Vname;
+    V.Dimensions(1).Name      = 'xi_psi';
+    V.Dimensions(1).Length    = [];
+    V.Dimensions(1).Unlimited = false;
+    V.Dimensions(2).Name      = 'eta_psi';
+    V.Dimensions(2).Length    = [];
+    V.Dimensions(2).Unlimited = false;
+    V.Size                    = [];
+    V.Attributes(1).Name      = 'long_name';
+    V.Attributes(1).Value     = 'factional ETA-locations of PSI-points';
+    V.Attributes(2).Name      = 'coordinates';
+    if (spherical),
+      V.Attributes(2).Value   = 'lon_psi lat_psi';
+    else
+      V.Attributes(2).Value   = 'x_psi y_psi';
+    end
+    V.Cgridtype.Name          = 'streamfunction point';
+    V.Cgridtype.Value         = 2;
+    V.Datatype                = 'double';
+    V.ncType                  = nc_constant('nc_double');
+  case 'xi_u'
+    V.Name                    = Vname;
+    V.Dimensions(1).Name      = 'xi_u';
+    V.Dimensions(1).Length    = [];
+    V.Dimensions(1).Unlimited = false;
+    V.Dimensions(2).Name      = 'eta_u';
+    V.Dimensions(2).Length    = [];
+    V.Dimensions(2).Unlimited = false;
+    V.Size                    = [];
+    V.Attributes(1).Name      = 'long_name';
+    V.Attributes(1).Value     = 'fractional XI-locations of U-points';
+    V.Attributes(2).Name      = 'coordinates';
+    if (spherical),
+      V.Attributes(2).Value   = 'lon_u lat_u';
+    else
+      V.Attributes(2).Value   = 'x_u y_u';
+    end
+    V.Cgridtype.Name          = 'u-velocity point';
+    V.Cgridtype.Value         = 3;
+    V.Datatype                = 'double';
+    V.ncType                  = nc_constant('nc_double');
+  case 'eta_u'
+    V.Name                    = Vname;
+    V.Dimensions(1).Name      = 'xi_u';
+    V.Dimensions(1).Length    = [];
+    V.Dimensions(1).Unlimited = false;
+    V.Dimensions(2).Name      = 'eta_u';
+    V.Dimensions(2).Length    = [];
+    V.Dimensions(2).Unlimited = false;
+    V.Size                    = [];
+    V.Attributes(1).Name      = 'long_name';
+    V.Attributes(1).Value     = 'fractional ETA-locations of U-points';
+    V.Attributes(2).Name      = 'coordinates';
+    if (spherical),
+      V.Attributes(2).Value   = 'lon_u lat_u';
+    else
+      V.Attributes(2).Value   = 'x_u y_u';
+    end
+    V.Cgridtype.Name          = 'u-velocity point';
+    V.Cgridtype.Value         = 3;
+    V.Datatype                = 'double';
+    V.ncType                  = nc_constant('nc_double');
+  case 'xi_v'
+    V.Name                    = Vname;
+    V.Dimensions(1).Name      = 'xi_v';
+    V.Dimensions(1).Length    = [];
+    V.Dimensions(1).Unlimited = false;
+    V.Dimensions(2).Name      = 'eta_v';
+    V.Dimensions(2).Length    = [];
+    V.Dimensions(2).Unlimited = false;
+    V.Size                    = [];
+    V.Attributes(1).Name      = 'long_name';
+    V.Attributes(1).Value     = 'fractional XI-locations of V-points';
+    V.Attributes(2).Name      = 'coordinates';
+    if (spherical),
+      V.Attributes(2).Value   = 'lon_v lat_v';
+    else
+      V.Attributes(2).Value   = 'x_v y_v';
+    end
+    V.Cgridtype.Name          = 'v-velocity point';
+    V.Cgridtype.Value         = 4;
+    V.Datatype                = 'double';
+    V.ncType                  = nc_constant('nc_double');
+  case 'eta_v'
+    V.Name                    = Vname;
+    V.Dimensions(1).Name      = 'xi_v';
+    V.Dimensions(1).Length    = [];
+    V.Dimensions(1).Unlimited = false;
+    V.Dimensions(2).Name      = 'eta_v';
+    V.Dimensions(2).Length    = [];
+    V.Dimensions(2).Unlimited = false;
+    V.Size                    = [];
+    V.Attributes(1).Name      = 'long_name';
+    V.Attributes(1).Value     = 'fractional ETA-locations of V-points';
+    V.Attributes(2).Name      = 'coordinates';
+    if (spherical),
+      V.Attributes(2).Value   = 'lon_v lat_v';
+    else
+      V.Attributes(2).Value   = 'x_v y_v';
+    end
+    V.Cgridtype.Name          = 'v-velocity point';
+    V.Cgridtype.Value         = 4;
     V.Datatype                = 'double';
     V.ncType                  = nc_constant('nc_double');
   case 'x_rho'
@@ -664,7 +855,32 @@ switch Vname
     V.Cgridtype.Value         = 4;
     V.Datatype                = 'double';
     V.ncType                  = nc_constant('nc_double');
-  case 'mask_rho'
+  case 'mask'
+    V.Name                    = Vname;
+    V.Dimensions(1).Name      = 'xi_rho';
+    V.Dimensions(1).Length    = [];
+    V.Dimensions(1).Unlimited = false;
+    V.Dimensions(2).Name      = 'eta_rho';
+    V.Dimensions(2).Length    = [];
+    V.Dimensions(2).Unlimited = false;
+    V.Size                    = [];
+    V.Attributes(1).Name      = 'long_name';
+    V.Attributes(1).Value     = 'land-sea mask';
+    V.Attributes(2).Name      = 'flag_values';
+    V.Attributes(2).Value     = [double(0) double(1)];
+    V.Attributes(3).Name      = 'flag_meanings';
+    V.Attributes(3).Value     = 'land water';
+    V.Attributes(4).Name      = 'coordinates';
+    if (spherical),
+      V.Attributes(4).Value   = 'lon lat';
+    else
+      V.Attributes(4).Value   = 'x_rho y_rho';
+    end      
+    V.Cgridtype.Name          = 'density point';
+    V.Cgridtype.Value         = 1;
+    V.Datatype                = 'double';
+    V.ncType                  = nc_constant('nc_double');
+ case 'mask_rho'
     V.Name                    = Vname;
     V.Dimensions(1).Name      = 'xi_rho';
     V.Dimensions(1).Length    = [];
@@ -800,6 +1016,73 @@ switch Vname
     V.Attributes(1).Value     = 'horizontal diffusivity sponge factor';
     V.Attributes(2).Name      = 'valid_min';
     V.Attributes(2).Value     = double(0);
+    V.Attributes(3).Name      = 'coordinates';
+    if (spherical),
+      V.Attributes(3).Value   = 'lon_rho lat_rho';
+    else
+      V.Attributes(3).Value   = 'x_rho y_rho';
+    end      
+    V.Cgridtype.Name          = 'density point';
+    V.Cgridtype.Value         = 1;
+    V.Datatype                = 'double';
+    V.ncType                  = nc_constant('nc_double');
+  case 'rdrag'
+    V.Name                    = Vname;
+    V.Dimensions(1).Name      = 'xi_rho';
+    V.Dimensions(1).Length    = [];
+    V.Dimensions(1).Unlimited = false;
+    V.Dimensions(2).Name      = 'eta_rho';
+    V.Dimensions(2).Length    = [];
+    V.Dimensions(2).Unlimited = false;
+    V.Size                    = [];
+    V.Attributes(1).Name      = 'long_name';
+    V.Attributes(1).Value     = 'linear bottom drag coefficient';
+    V.Attributes(2).Name      = 'units';
+    V.Attributes(2).Value     = 'meter second-1';
+    V.Attributes(3).Name      = 'coordinates';
+    if (spherical),
+      V.Attributes(3).Value   = 'lon_rho lat_rho';
+    else
+      V.Attributes(3).Value   = 'x_rho y_rho';
+    end      
+    V.Cgridtype.Name          = 'density point';
+    V.Cgridtype.Value         = 1;
+    V.Datatype                = 'double';
+    V.ncType                  = nc_constant('nc_double');
+  case 'rdrag2'
+    V.Name                    = Vname;
+    V.Dimensions(1).Name      = 'xi_rho';
+    V.Dimensions(1).Length    = [];
+    V.Dimensions(1).Unlimited = false;
+    V.Dimensions(2).Name      = 'eta_rho';
+    V.Dimensions(2).Length    = [];
+    V.Dimensions(2).Unlimited = false;
+    V.Size                    = [];
+    V.Attributes(1).Name      = 'long_name';
+    V.Attributes(1).Value     = 'quadratic bottom drag coefficient';
+    V.Attributes(2).Name      = 'coordinates';
+    if (spherical),
+      V.Attributes(2).Value   = 'lon_rho lat_rho';
+    else
+      V.Attributes(2).Value   = 'x_rho y_rho';
+    end      
+    V.Cgridtype.Name          = 'density point';
+    V.Cgridtype.Value         = 1;
+    V.Datatype                = 'double';
+    V.ncType                  = nc_constant('nc_double');
+  case 'ZoBot'
+    V.Name                    = Vname;
+    V.Dimensions(1).Name      = 'xi_rho';
+    V.Dimensions(1).Length    = [];
+    V.Dimensions(1).Unlimited = false;
+    V.Dimensions(2).Name      = 'eta_rho';
+    V.Dimensions(2).Length    = [];
+    V.Dimensions(2).Unlimited = false;
+    V.Size                    = [];
+    V.Attributes(1).Name      = 'long_name';
+    V.Attributes(1).Value     = 'time invariant, bottom roughness length';
+    V.Attributes(2).Name      = 'units';
+    V.Attributes(2).Value     = 'meter';
     V.Attributes(3).Name      = 'coordinates';
     if (spherical),
       V.Attributes(3).Value   = 'lon_rho lat_rho';
@@ -2454,9 +2737,9 @@ switch Vname
     V.Dimensions(1).Name      = 'river';
     V.Dimensions(1).Length    = [];
     V.Dimensions(1).Unlimited = false;
-    V.Dimensions(1).Name      = 's_rho';
-    V.Dimensions(1).Length    = [];
-    V.Dimensions(1).Unlimited = false;
+    V.Dimensions(2).Name      = 's_rho';
+    V.Dimensions(2).Length    = [];
+    V.Dimensions(2).Unlimited = false;
     V.Dimensions(3).Name      = 'river_time';
     V.Dimensions(3).Length    = [];
     V.Dimensions(3).Unlimited = Unlimited;
@@ -2476,9 +2759,9 @@ switch Vname
     V.Dimensions(1).Name      = 'river';
     V.Dimensions(1).Length    = [];
     V.Dimensions(1).Unlimited = false;
-    V.Dimensions(1).Name      = 's_rho';
-    V.Dimensions(1).Length    = [];
-    V.Dimensions(1).Unlimited = false;
+    V.Dimensions(2).Name      = 's_rho';
+    V.Dimensions(2).Length    = [];
+    V.Dimensions(2).Unlimited = false;
     V.Dimensions(3).Name      = 'river_time';
     V.Dimensions(3).Length    = [];
     V.Dimensions(3).Unlimited = Unlimited;
@@ -4416,6 +4699,45 @@ switch Vname
     V.Datatype                = Datatype;
     V.ncType                  = nc_constant(nctype);
 
+%--------------------------------------------------------------------------
+%  Inert passive tracer variables.
+%--------------------------------------------------------------------------   
+  
+  case {'dye_01', 'dye_02', 'dye_03', 'dye_04',                         ...
+        'dye_05', 'dye_06', 'dye_07', 'dye_08'}
+    class = textscan(Vname, 'dye_ %d');
+    V.Name                    = Vname;
+    V.Dimensions(1).Name      = 'xi_rho';
+    V.Dimensions(1).Length    = [];
+    V.Dimensions(1).Unlimited = false;
+    V.Dimensions(2).Name      = 'eta_rho';
+    V.Dimensions(2).Length    = [];
+    V.Dimensions(2).Unlimited = false;
+    V.Dimensions(3).Name      = 's_rho';
+    V.Dimensions(3).Length    = [];
+    V.Dimensions(3).Unlimited = false;
+    V.Dimensions(4).Name      = 'ocean_time';
+    V.Dimensions(4).Length    = [];
+    V.Dimensions(4).Unlimited = Unlimited;
+    V.Size                    = [];
+    V.Attributes(1).Name      = 'long_name';
+    V.Attributes(1).Value     = ['dye concentration, ',                 ...
+                                 num2str(class{:}, '%2.2i')];
+    V.Attributes(2).Name      = 'units';
+    V.Attributes(2).Value     = 'kilogram meter-3';
+    V.Attributes(3).Name      = 'time';
+    V.Attributes(3).Value     = 'ocean_time';
+    V.Attributes(4).Name      = 'coordinates';
+    if (spherical),
+      V.Attributes(4).Value   = 'lon_rho lat_rho s_rho ocean_time';
+    else
+      V.Attributes(4).Value   = 'x_rho y_rho s_rho ocean_time';
+    end
+    V.Cgridtype.Name          = 'density point';
+    V.Cgridtype.Value         = 1;
+    V.Datatype                = Datatype;
+    V.ncType                  = nc_constant(nctype);
+       
 %--------------------------------------------------------------------------
 %  Sediment state variables.
 %--------------------------------------------------------------------------
